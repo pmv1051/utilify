@@ -229,8 +229,6 @@ mod tests {
         play(&conn, "spotify:track:b", "B", t0 + 800, 60_000, true);
         play(&conn, "spotify:track:c", "C", t0 + 1200, 40_000, false); // left open
 
-        assert!(playback_log::has_played(&conn, "spotify:track:a").unwrap());
-        assert!(!playback_log::has_played(&conn, "spotify:track:zzz").unwrap());
 
         // Open row gets closed at "launch" and classified.
         assert_eq!(playback_log::close_stale(&conn).unwrap(), 1);

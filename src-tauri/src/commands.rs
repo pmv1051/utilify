@@ -12,7 +12,9 @@ use crate::db::randomizer::SessionRow;
 use crate::db::{self, config};
 use crate::error::{AppError, Result};
 use crate::features::diff::{self, DiffResult};
+use crate::db::discovery::SourceRow;
 use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
+use crate::features::discovery::{self, ArtistRef, DiscoverResult, DiscoveryStatus, LibraryIndexInfo};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
 use crate::features::editor::{self, ApplyResult};
 use crate::features::export_import::{self, ExportContent, ImportMatch};
@@ -346,6 +348,50 @@ pub async fn import_search(app: AppHandle, state: State<'_, AppState>, lines: Ve
 #[tauri::command]
 pub async fn genre_breakdown(app: AppHandle, state: State<'_, AppState>, playlist_id: String) -> Result<GenreBreakdown> {
     genre::breakdown(&app, &state, &playlist_id).await
+}
+
+// ---- discovery -------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_discovery_status(state: State<'_, AppState>) -> Result<DiscoveryStatus> {
+    discovery::status(&state)
+}
+
+#[tauri::command]
+pub async fn rebuild_library_index(app: AppHandle, state: State<'_, AppState>) -> Result<LibraryIndexInfo> {
+    discovery::rebuild_library_index(&app, &state).await
+}
+
+#[tauri::command]
+pub async fn list_followed_artists(state: State<'_, AppState>) -> Result<Vec<ArtistHit>> {
+    discovery::followed_artists(&state).await
+}
+
+#[tauri::command]
+pub async fn index_discovery_artists(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    artists: Vec<ArtistRef>,
+    kind: String,
+    max_releases: usize,
+    force: bool,
+) -> Result<usize> {
+    discovery::index_artists(&app, &state, &artists, &kind, max_releases, force).await
+}
+
+#[tauri::command]
+pub async fn add_seed_playlist(app: AppHandle, state: State<'_, AppState>, reference: String) -> Result<SourceRow> {
+    discovery::add_seed_playlist(&app, &state, &reference).await
+}
+
+#[tauri::command]
+pub fn remove_discovery_source(state: State<'_, AppState>, key: String) -> Result<()> {
+    discovery::remove_source(&state, &key)
+}
+
+#[tauri::command]
+pub async fn discover(state: State<'_, AppState>, count: usize, mode: String) -> Result<DiscoverResult> {
+    discovery::discover(&state, count, &mode).await
 }
 
 // ---- stats -----------------------------------------------------------------

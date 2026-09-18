@@ -82,6 +82,13 @@ pub fn run() {
             commands::import_search,
             commands::get_stats,
             commands::genre_breakdown,
+            commands::get_discovery_status,
+            commands::rebuild_library_index,
+            commands::list_followed_artists,
+            commands::index_discovery_artists,
+            commands::add_seed_playlist,
+            commands::remove_discovery_source,
+            commands::discover,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

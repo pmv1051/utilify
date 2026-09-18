@@ -67,6 +67,13 @@ pub async fn seek(c: &SpotifyClient, position_ms: u64, device_id: Option<&str>) 
     c.put("/me/player/seek", &query, None).await
 }
 
+/// `POST /me/player/queue?uri=` — needs an active device.
+pub async fn add_to_queue(c: &SpotifyClient, uri: &str, device_id: Option<&str>) -> Result<()> {
+    let mut query = device_query(device_id);
+    query.push(("uri", uri.to_string()));
+    c.post_empty("/me/player/queue", &query).await
+}
+
 /// `state` is one of `off`, `context`, `track`.
 pub async fn set_repeat(c: &SpotifyClient, state: &str, device_id: Option<&str>) -> Result<()> {
     let mut query = device_query(device_id);

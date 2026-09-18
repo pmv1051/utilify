@@ -14,6 +14,7 @@ import { EditorPage } from "./pages/EditorPage";
 import { ExportImportPage } from "./pages/ExportImportPage";
 import { StatsPage } from "./pages/StatsPage";
 import { GenrePage } from "./pages/GenrePage";
+import { DiscoveryPage } from "./pages/DiscoveryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { NowPlaying } from "./components/NowPlaying";
@@ -87,9 +88,7 @@ export default function App() {
           {page === "exportimport" && <ExportImportPage />}
           {page === "stats" && <StatsPage />}
           {page === "genre" && <GenrePage />}
-          {page === "discovery" && (
-            <div className="p-6 text-sm text-muted">This page is coming next in Phase 4.</div>
-          )}
+          {page === "discovery" && <DiscoveryPage />}
           {page === "settings" && <SettingsPage />}
         </main>
         <NowPlaying />

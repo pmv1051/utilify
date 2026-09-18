@@ -67,12 +67,3 @@ pub fn close_stale(conn: &Connection) -> rusqlite::Result<usize> {
     )
 }
 
-/// True if this track has ever been logged (skipped or listened).
-pub fn has_played(conn: &Connection, track_uri: &str) -> rusqlite::Result<bool> {
-    let n: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM playback_log WHERE track_uri = ?1",
-        [track_uri],
-        |r| r.get(0),
-    )?;
-    Ok(n > 0)
-}

@@ -1,6 +1,7 @@
 pub mod bench;
 pub mod diff;
 pub mod discography;
+pub mod discovery;
 pub mod duplicates;
 pub mod editor;
 pub mod export_import;
