@@ -17,6 +17,7 @@ use crate::error::{AppError, Result};
 use crate::features::discography::ArtistHit;
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::tracks::fetch_playlist;
+use crate::spotify::models::PlaybackState;
 use crate::spotify::{artists, following, playback, playlists};
 use crate::state::AppState;
 
@@ -289,7 +290,10 @@ pub async fn discover(state: &AppState, n: usize, mode: &str) -> Result<Discover
         "playlist" => {
             let name = format!("Discovery {}", chrono::Local::now().format("%Y-%m-%d %H:%M"));
             let uris: Vec<String> = picks.iter().map(|c| c.track_uri.clone()).collect();
-            let created = generated::create_from_uris(state, &name, uris, false).await?;
+            let created = generated::create_from_uris(state, &name, uris.clone(), false).await?;
+            state
+                .db
+                .with(|c| ddb::save_playlist(c, &created.id, &created.name, &uris, now()))?;
             match playback::play_playlist_unshuffled(&state.spotify, &created.id).await {
                 Ok(()) | Err(AppError::NoActiveDevice) => {}
                 Err(e) => log::warn!("discovery: could not start playlist: {e}"),
@@ -312,6 +316,45 @@ pub async fn discover(state: &AppState, n: usize, mode: &str) -> Result<Discover
         offered: picks,
         playlist,
     })
+}
+
+/// Positional inference for Discovery playlists (called every poll).
+///
+/// Polls are 30 s apart, so a track can start and finish unobserved. If the
+/// previous poll was at index `i` of a Discovery playlist we built and this
+/// poll is at index `j > i` of the same playlist, every track strictly between
+/// them was played through: mark those listened. The two endpoints were
+/// observed, so the playback logger's own 10-second verdict stands for them.
+pub fn on_poll(state: &AppState, previous: Option<&PlaybackState>, current: Option<&PlaybackState>) {
+    let (Some(prev), Some(cur)) = (previous, current) else { return };
+    let (Some(ctx), Some(prev_ctx)) = (cur.context_uri(), prev.context_uri()) else { return };
+    if ctx != prev_ctx {
+        return;
+    }
+    let Some(playlist_id) = ctx.strip_prefix("spotify:playlist:") else { return };
+    let order = match state.db.with(|c| ddb::playlist_order(c, playlist_id)) {
+        Ok(Some(o)) => o,
+        Ok(None) => return,
+        Err(e) => {
+            log::warn!("discovery: could not read playlist order: {e}");
+            return;
+        }
+    };
+    let idx = |p: &PlaybackState| {
+        let uri = p.track_uri()?;
+        let original = p.original_track_uri();
+        order.iter().position(|u| u == uri || Some(u.as_str()) == original)
+    };
+    let (Some(i), Some(j)) = (idx(prev), idx(cur)) else { return };
+    if j <= i + 1 {
+        return;
+    }
+    let between: Vec<String> = order[i + 1..j].to_vec();
+    match state.db.with(|c| ddb::mark_listened(c, &between)) {
+        Ok(n) if n > 0 => log::info!("discovery: {n} track(s) played between polls marked listened"),
+        Ok(_) => {}
+        Err(e) => log::warn!("discovery: mark_listened failed: {e}"),
+    }
 }
 
 #[cfg(test)]

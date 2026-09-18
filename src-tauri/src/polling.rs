@@ -10,7 +10,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::AppError;
-use crate::features::{bench, randomizer, stats};
+use crate::features::{bench, discovery, randomizer, stats};
 use crate::spotify::playback;
 use crate::state::AppState;
 
@@ -46,6 +46,7 @@ async fn tick(app: &AppHandle) {
             let previous = state.set_last_playback(current.clone());
             let _ = app.emit("playback-state", &current);
             stats::on_tick(app, &state, current.as_ref());
+            discovery::on_poll(&state, previous.as_ref(), current.as_ref());
             randomizer::on_poll(app, &state, previous.as_ref(), current.as_ref()).await;
         }
         Err(AppError::AuthExpired) | Err(AppError::NotAuthenticated) => {

@@ -298,4 +298,31 @@ mod tests {
         discovery::remove_source(&mut conn, &src.key).unwrap();
         assert_eq!(discovery::pool_counts(&conn).unwrap(), (0, 0));
     }
+
+    #[test]
+    fn discovery_playlist_order_and_between_marking() {
+        let conn = fresh();
+        let order: Vec<String> = (1..=5).map(|i| format!("spotify:track:d{i}")).collect();
+        discovery::save_playlist(&conn, "dp", "Utilify: Discovery", &order, 1).unwrap();
+        assert_eq!(discovery::playlist_order(&conn, "dp").unwrap(), Some(order.clone()));
+        assert_eq!(discovery::playlist_order(&conn, "other").unwrap(), None);
+
+        for u in &order {
+            let c = discovery::Candidate {
+                track_uri: u.clone(),
+                name: None,
+                artists: None,
+                album: None,
+                source_key: "s".into(),
+            };
+            discovery::log_offered(&conn, &c, 2).unwrap();
+        }
+        // Jumped from index 0 to index 3: tracks 1 and 2 were played through.
+        let between = order[1..3].to_vec();
+        assert_eq!(discovery::mark_listened(&conn, &between).unwrap(), 2);
+        // Already decided entries are not touched again.
+        assert_eq!(discovery::mark_listened(&conn, &between).unwrap(), 0);
+        let t = discovery::totals(&conn).unwrap();
+        assert_eq!((t.offered, t.listened, t.pending), (5, 2, 3));
+    }
 }

@@ -179,6 +179,44 @@ pub fn sample_unseen(conn: &Connection, n: usize) -> rusqlite::Result<Vec<Candid
     Ok(out)
 }
 
+// ---- discovery playlists ---------------------------------------------------
+
+pub fn save_playlist(conn: &Connection, playlist_id: &str, name: &str, order: &[String], now: i64) -> rusqlite::Result<()> {
+    let order_json = serde_json::to_string(order)
+        .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+    conn.execute(
+        "INSERT INTO discovery_playlists (playlist_id, name, created_at, track_order) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(playlist_id) DO UPDATE SET name = excluded.name, created_at = excluded.created_at,
+             track_order = excluded.track_order",
+        params![playlist_id, name, now, order_json],
+    )?;
+    Ok(())
+}
+
+/// Track order of a Discovery playlist we created, if this id is one.
+pub fn playlist_order(conn: &Connection, playlist_id: &str) -> rusqlite::Result<Option<Vec<String>>> {
+    let json: Option<String> = conn
+        .query_row(
+            "SELECT track_order FROM discovery_playlists WHERE playlist_id = ?1",
+            [playlist_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    Ok(json.and_then(|s| serde_json::from_str(&s).ok()))
+}
+
+/// Tracks the user moved past between two polls: mark pending ones listened.
+pub fn mark_listened(conn: &Connection, uris: &[String]) -> rusqlite::Result<usize> {
+    let mut n = 0;
+    for u in uris {
+        n += conn.execute(
+            "UPDATE discovery_log SET status = 'listened' WHERE track_uri = ?1 AND status = 'queued'",
+            [u],
+        )?;
+    }
+    Ok(n)
+}
+
 // ---- discovery log ---------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize)]

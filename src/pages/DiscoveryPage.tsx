@@ -35,8 +35,8 @@ export function DiscoveryPage() {
   const [artistHits, setArtistHits] = useState<ArtistHit[]>([]);
   const [seedRef, setSeedRef] = useState("");
 
-  const [count, setCount] = useState(10);
-  const [mode, setMode] = useState<"queue" | "playlist">("queue");
+  const [count, setCount] = useState(50);
+  const [mode, setMode] = useState<"queue" | "playlist">("playlist");
   const [lastResult, setLastResult] = useState<DiscoverResult | null>(null);
 
   const load = useCallback(async () => {
@@ -150,7 +150,8 @@ export function DiscoveryPage() {
         <p className="max-w-3xl text-sm text-muted">
           A track counts as heard once it has been played for 10 seconds or skipped while Utilify was logging, once
           Discovery has offered it, or if it sits in any playlist of your library. Everything else in the pool is fair
-          game.
+          game. Playlist mode is recommended: Utilify knows the order, so tracks you play through between two
+          30-second checks are still recorded as listened.
         </p>
 
         {/* 1. Discover */}
@@ -170,11 +171,15 @@ export function DiscoveryPage() {
             </label>
             <select
               value={mode}
-              onChange={(e) => setMode(e.target.value as "queue" | "playlist")}
+              onChange={(e) => {
+                const m = e.target.value as "queue" | "playlist";
+                setMode(m);
+                setCount((c) => (m === "queue" ? Math.min(c, 20) : c));
+              }}
               className="rounded-md border border-line bg-ink px-2 py-1.5 text-sm outline-none focus:border-spotify"
             >
+              <option value="playlist">as a new "Utilify: Discovery" playlist (recommended)</option>
               <option value="queue">by adding them to the Spotify queue (max 20)</option>
-              <option value="playlist">as a new "Utilify: Discovery" playlist</option>
             </select>
             <Button onClick={discover} disabled={busy !== null || !status || status.poolUnseen === 0}>
               {busy === "discover" ? <Spinner /> : "✦ Discover"}

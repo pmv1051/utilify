@@ -134,6 +134,16 @@ const MIGRATIONS: &[&str] = &[
     );
     CREATE INDEX IF NOT EXISTS idx_pool_source ON discovery_pool(source_key);
     "#,
+    // v5: Discovery playlists we created, with their track order, so the
+    // poller can infer outcomes for tracks that played between two polls.
+    r#"
+    CREATE TABLE IF NOT EXISTS discovery_playlists (
+        playlist_id TEXT PRIMARY KEY,
+        name        TEXT NOT NULL,
+        created_at  INTEGER NOT NULL,
+        track_order TEXT NOT NULL
+    );
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {
