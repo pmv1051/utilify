@@ -28,6 +28,15 @@ pub struct EditorTrack {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EditorLoad {
+    pub tracks: Vec<EditorTrack>,
+    /// False when the liked check failed; `liked` is then `None` everywhere.
+    pub liked_available: bool,
+    pub liked_error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EditorProgress {
     pub playlist_id: String,
     pub done: usize,
@@ -40,27 +49,46 @@ pub struct ApplyResult {
     pub moves: usize,
 }
 
-/// All items of a playlist with true positions and liked flags.
-pub async fn load(state: &AppState, playlist_id: &str) -> Result<Vec<EditorTrack>> {
+/// All items of a playlist with true positions and liked flags. The liked
+/// lookup is best-effort: if Spotify refuses it (scope or dev-mode limits),
+/// the playlist still loads without hearts.
+pub async fn load(state: &AppState, playlist_id: &str) -> Result<EditorLoad> {
     let tracks = fetch_playlist(state, playlist_id).await?;
     let ids: Vec<String> = tracks
         .iter()
         .filter(|t| t.playable)
         .filter_map(|t| t.id.clone())
         .collect();
-    let flags = if ids.is_empty() {
-        Vec::new()
+
+    let (flags, liked_error) = if ids.is_empty() {
+        (Some(Vec::new()), None)
     } else {
-        library::contains_saved_tracks(&state.spotify, &ids).await?
+        match library::contains_saved_tracks(&state.spotify, &ids).await {
+            Ok(f) => (Some(f), None),
+            Err(e) => {
+                log::warn!("editor: liked lookup failed, continuing without hearts: {e}");
+                (None, Some(e.to_string()))
+            }
+        }
     };
-    let mut flag_iter = flags.into_iter();
-    Ok(tracks
+    let liked_available = flags.is_some();
+    let mut flag_iter = flags.unwrap_or_default().into_iter();
+    let tracks = tracks
         .into_iter()
         .map(|t| {
-            let liked = if t.playable && t.id.is_some() { flag_iter.next() } else { None };
+            let liked = if liked_available && t.playable && t.id.is_some() {
+                flag_iter.next()
+            } else {
+                None
+            };
             EditorTrack { track: t, liked }
         })
-        .collect())
+        .collect();
+    Ok(EditorLoad {
+        tracks,
+        liked_available,
+        liked_error,
+    })
 }
 
 /// One Spotify reorder call.

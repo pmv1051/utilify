@@ -37,6 +37,8 @@ export function EditorPage() {
 
   const [playlistId, setPlaylistId] = useState<string | null>(null);
   const [tracks, setTracks] = useState<EditorTrack[]>([]);
+  const [likedAvailable, setLikedAvailable] = useState(true);
+  const [likedError, setLikedError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -59,7 +61,10 @@ export function EditorPage() {
     }
     setLoading(true);
     try {
-      setTracks(await api.loadPlaylistForEditor(id));
+      const r = await api.loadPlaylistForEditor(id);
+      setTracks(r.tracks);
+      setLikedAvailable(r.likedAvailable);
+      setLikedError(r.likedError);
     } catch (e) {
       toast("error", errorMessage(e));
     } finally {
@@ -174,12 +179,19 @@ export function EditorPage() {
 
   return (
     <div className="flex h-full flex-col">
-      <PageHeader title="Playlist Editor" subtitle={tracks.length ? `${tracks.length} tracks` : undefined}>
+      <PageHeader title="Playlist Editor" subtitle={tracks.length ? `${tracks.length} tracks` : undefined} />
+
+      <div className="flex flex-wrap items-center gap-3 border-b border-line bg-panel px-6 py-3">
         <PlaylistSelect value={playlistId} onChange={setPlaylistId} disabled={applying} />
         <Button variant="secondary" onClick={() => load(playlistId)} disabled={!playlistId || busy}>
-          {loading ? <Spinner /> : "↻"}
+          {loading ? <Spinner /> : "↻"} Reload
         </Button>
-      </PageHeader>
+        {playlistId && !loading && !likedAvailable && (
+          <span className="text-xs text-amber-400" title={likedError ?? undefined}>
+            Liked status unavailable{likedError ? `: ${likedError}` : ""}
+          </span>
+        )}
+      </div>
 
       {playlistId && (
         <div className="flex flex-wrap items-center gap-2 border-b border-line bg-panel px-6 py-2 text-sm">
@@ -279,7 +291,7 @@ export function EditorPage() {
 
       <div className="flex-1 overflow-auto">
         {!playlistId ? (
-          <p className="p-6 text-sm text-muted">Pick a playlist to edit. Reordering keeps each track's "date added".</p>
+          <p className="p-6 text-sm text-muted">Pick a playlist above. Reordering keeps each track's "date added".</p>
         ) : loading ? (
           <div className="flex items-center gap-2 p-6 text-sm text-muted">
             <Spinner /> Loading tracks and liked status…
@@ -290,7 +302,11 @@ export function EditorPage() {
               <tr>
                 <th className="w-8 px-3 py-2"></th>
                 <th className="w-12 px-2 py-2 text-right">#</th>
-                <th className="w-8 px-2 py-2" title="Liked">♥</th>
+                {likedAvailable && (
+                  <th className="w-8 px-2 py-2" title="Liked">
+                    ♥
+                  </th>
+                )}
                 <th className="px-2 py-2">Title</th>
                 <th className="px-2 py-2">Album</th>
                 <th className="w-28 px-2 py-2">Added</th>
@@ -312,13 +328,15 @@ export function EditorPage() {
                       <input type="checkbox" checked={on} readOnly />
                     </td>
                     <td className="px-2 py-1.5 text-right text-xs text-muted">{t.position + 1}</td>
-                    <td className="px-2 py-1.5">
-                      {t.liked === true ? (
-                        <span className="text-spotify" title="In your Liked Songs">♥</span>
-                      ) : t.liked === false ? (
-                        <span className="text-line">♡</span>
-                      ) : null}
-                    </td>
+                    {likedAvailable && (
+                      <td className="px-2 py-1.5">
+                        {t.liked === true ? (
+                          <span className="text-spotify" title="In your Liked Songs">♥</span>
+                        ) : t.liked === false ? (
+                          <span className="text-line">♡</span>
+                        ) : null}
+                      </td>
+                    )}
                     <td className="px-2 py-1.5">
                       <div className="truncate">{t.name}</div>
                       <div className="truncate text-xs text-muted">
@@ -334,7 +352,7 @@ export function EditorPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-6 py-4 text-muted">
+                  <td colSpan={likedAvailable ? 7 : 6} className="px-6 py-4 text-muted">
                     No tracks match.
                   </td>
                 </tr>

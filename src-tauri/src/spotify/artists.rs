@@ -65,6 +65,10 @@ pub struct SimplifiedAlbum {
     pub artists: Vec<Artist>,
 }
 
+/// Per-page size for artist/album listings. The Feb 2026 API rejected 50
+/// with "Invalid limit" on a live run; 20 is the safe value.
+const PAGE_LIMIT: &str = "20";
+
 /// `GET /artists/{id}/albums`. `include_groups` is a comma list of
 /// `album`, `single`, `compilation`, `appears_on`. `market=from_token`
 /// collapses the per-market duplicates Spotify otherwise returns.
@@ -74,7 +78,7 @@ pub async fn artist_albums(c: &SpotifyClient, artist_id: &str, include_groups: &
         &[
             ("include_groups", include_groups.to_string()),
             ("market", "from_token".to_string()),
-            ("limit", "50".to_string()),
+            ("limit", PAGE_LIMIT.to_string()),
         ],
     )
     .await
@@ -84,7 +88,7 @@ pub async fn artist_albums(c: &SpotifyClient, artist_id: &str, include_groups: &
 pub async fn album_tracks(c: &SpotifyClient, album_id: &str) -> Result<Vec<Track>> {
     c.get_all_pages(
         &format!("/albums/{album_id}/tracks"),
-        &[("market", "from_token".to_string()), ("limit", "50".to_string())],
+        &[("market", "from_token".to_string()), ("limit", PAGE_LIMIT.to_string())],
     )
     .await
 }

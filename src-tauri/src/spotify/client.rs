@@ -302,6 +302,12 @@ impl SpotifyClient {
                 .and_then(|e| e.error.message.clone())
                 .unwrap_or_else(|| text.chars().take(200).collect());
             let reason = envelope.as_ref().and_then(|e| e.error.reason.clone());
+            if status != StatusCode::UNAUTHORIZED {
+                log::warn!(
+                    "{method} {url} -> {status}: {message}{}",
+                    reason.as_deref().map(|r| format!(" (reason {r})")).unwrap_or_default()
+                );
+            }
 
             match status {
                 StatusCode::UNAUTHORIZED => {
