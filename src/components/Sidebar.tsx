@@ -1,4 +1,5 @@
 import { useApp, type Page } from "../stores/app";
+import { useQuotaCooldown } from "../lib/quota";
 
 interface Item {
   id: Page;
@@ -45,6 +46,7 @@ export function Sidebar() {
   const setup = useApp((s) => s.setup);
   const sessions = useApp((s) => s.sessions);
   const benches = useApp((s) => s.benches);
+  const cooldown = useQuotaCooldown();
   const badge: Partial<Record<Page, number>> = { randomizer: sessions.length, bench: benches.length };
 
   return (
@@ -79,6 +81,12 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
+      {cooldown.active && (
+        <div className="mx-3 mb-2 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-300" title={cooldown.reason}>
+          <div className="font-semibold">API quota paused</div>
+          <div className="text-amber-200/80">Artist lookups resume in {cooldown.remaining}</div>
+        </div>
+      )}
       <div className="px-5 py-4 text-xs text-muted">
         {setup?.userDisplayName ? (
           <>

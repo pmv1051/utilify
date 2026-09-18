@@ -25,6 +25,7 @@ use crate::features::randomizer::{self, RandomizeResult};
 use crate::features::stats;
 use crate::features::tracks::{self, TrackInfo};
 use crate::features::{self, bench};
+use crate::spotify::client::QuotaStatus;
 use crate::spotify::models::PlaybackState;
 use crate::spotify::{auth, playback, playlists};
 use crate::state::AppState;
@@ -404,6 +405,18 @@ pub async fn discover(state: State<'_, AppState>, count: usize, mode: String) ->
 #[tauri::command]
 pub fn set_play_threshold(state: State<'_, AppState>, secs: i64) -> Result<()> {
     stats::set_play_threshold(&state, secs)
+}
+
+// ---- quota ----------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_quota_status(state: State<'_, AppState>) -> QuotaStatus {
+    state.spotify.quota_status()
+}
+
+#[tauri::command]
+pub fn clear_quota_cooldown(state: State<'_, AppState>) -> Result<()> {
+    state.spotify.clear_quota_cooldown()
 }
 
 // ---- tools: discography ----------------------------------------------------

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useApp } from "./stores/app";
-import type { BenchRow, PlaybackState, RandomizerSession } from "./lib/api";
+import type { BenchRow, PlaybackState, QuotaStatus, RandomizerSession } from "./lib/api";
 import { SetupPage } from "./pages/SetupPage";
 import { PlaylistsPage } from "./pages/PlaylistsPage";
 import { RandomizerPage } from "./pages/RandomizerPage";
@@ -28,6 +28,7 @@ export default function App() {
   const setPlayback = useApp((s) => s.setPlayback);
   const refreshSessions = useApp((s) => s.refreshSessions);
   const refreshBenches = useApp((s) => s.refreshBenches);
+  const setQuotaCooldown = useApp((s) => s.setQuotaCooldown);
   const toast = useApp((s) => s.toast);
 
   useEffect(() => {
@@ -44,6 +45,12 @@ export default function App() {
         toast("info", `"${e.payload.trackName ?? e.payload.trackUri}" is back in "${e.payload.playlistName ?? "its playlist"}".`);
       }),
       listen<string>("bench-error", (e) => toast("error", e.payload)),
+      listen<QuotaStatus>("quota-cooldown", (e) => {
+        setQuotaCooldown(e.payload.cooldownUntil);
+        if (e.payload.cooldownUntil) {
+          toast("error", "Spotify's API quota is exhausted. Artist lookups are paused for 24 hours; other features keep working.");
+        }
+      }),
       listen<void>("auth-expired", () => {
         toast("error", "Spotify session expired. Please reconnect.");
         init();
@@ -52,7 +59,7 @@ export default function App() {
     return () => {
       unlisteners.forEach((p) => p.then((un) => un()));
     };
-  }, [init, setPlayback, refreshSessions, refreshBenches, toast]);
+  }, [init, setPlayback, refreshSessions, refreshBenches, setQuotaCooldown, toast]);
 
   if (!ready || !setup) {
     return (

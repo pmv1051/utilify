@@ -2,12 +2,15 @@ import { useState } from "react";
 import { api, errorMessage } from "../lib/api";
 import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
+import { useQuotaCooldown } from "../lib/quota";
 
 export function SettingsPage() {
   const settings = useApp((s) => s.settings);
   const refreshSettings = useApp((s) => s.refreshSettings);
+  const refreshQuota = useApp((s) => s.refreshQuota);
   const setSetup = useApp((s) => s.setSetup);
   const toast = useApp((s) => s.toast);
+  const cooldown = useQuotaCooldown();
   const [busy, setBusy] = useState(false);
   const [threshold, setThreshold] = useState<string | null>(null);
   const [savingThreshold, setSavingThreshold] = useState(false);
@@ -113,6 +116,36 @@ export function SettingsPage() {
             Decides how Discovery records a track you were offered. Playback is checked every 30 seconds, so this is
             approximate.
           </p>
+        </Section>
+
+        <Section title="Spotify API quota">
+          {cooldown.active ? (
+            <div className="text-sm">
+              <div className="text-amber-300">Artist lookups paused for {cooldown.remaining}.</div>
+              <p className="mt-1 text-xs text-muted">{cooldown.reason}</p>
+              <Button
+                variant="secondary"
+                className="mt-3"
+                title="Only if you know the quota has reset. If it has not, the next artist lookup will fail and re-arm the 24-hour pause."
+                onClick={async () => {
+                  try {
+                    await api.clearQuotaCooldown();
+                    await refreshQuota();
+                    toast("info", "Cooldown cleared. If Spotify is still out of quota, it will re-arm on the next failure.");
+                  } catch (e) {
+                    toast("error", errorMessage(e));
+                  }
+                }}
+              >
+                Clear cooldown early
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">
+              No cooldown active. If Spotify reports its quota exhausted, artist and album lookups pause for 24 hours
+              automatically; other features keep working.
+            </p>
+          )}
         </Section>
 
         <Section title="Storage">

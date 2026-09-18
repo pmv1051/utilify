@@ -31,6 +31,7 @@ pub fn run() {
             let db = Db::open(&db_path)?;
             let spotify = SpotifyClient::new(db.clone());
             app.manage(AppState::new(db, spotify, db_path));
+            spotify::client::set_event_sink(app.handle().clone());
             features::stats::close_stale(app.state::<AppState>().inner());
 
             tray::setup(app.handle())?;
@@ -81,6 +82,8 @@ pub fn run() {
             commands::save_text_file,
             commands::import_search,
             commands::set_play_threshold,
+            commands::get_quota_status,
+            commands::clear_quota_cooldown,
             commands::get_discovery_status,
             commands::rebuild_library_index,
             commands::list_followed_artists,

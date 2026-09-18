@@ -44,9 +44,13 @@ interface AppStore {
   playback: PlaybackState | null;
   /** Wall-clock ms when `playback` was received; lets the UI tick progress between polls. */
   playbackReceivedAt: number;
+  /** Unix seconds until artist-family API calls are paused, or null. */
+  quotaCooldownUntil: number | null;
   toasts: Toast[];
 
   init: () => Promise<void>;
+  setQuotaCooldown: (until: number | null) => void;
+  refreshQuota: () => Promise<void>;
   setPage: (page: Page) => void;
   openBenchFor: (playlistId: string) => void;
   setBenchPlaylist: (playlistId: string | null) => void;
@@ -76,6 +80,7 @@ export const useApp = create<AppStore>((set, get) => ({
   benchPlaylistId: null,
   playback: null,
   playbackReceivedAt: 0,
+  quotaCooldownUntil: null,
   toasts: [],
 
   init: async () => {
@@ -96,7 +101,19 @@ export const useApp = create<AppStore>((set, get) => ({
       get().refreshBenches(),
       get().refreshPlayback(),
       get().refreshSettings(),
+      get().refreshQuota(),
     ]);
+  },
+
+  setQuotaCooldown: (until) => set({ quotaCooldownUntil: until }),
+
+  refreshQuota: async () => {
+    try {
+      const q = await api.getQuotaStatus();
+      set({ quotaCooldownUntil: q.cooldownUntil });
+    } catch {
+      // non-critical
+    }
   },
 
   setPage: (page) => set({ page }),

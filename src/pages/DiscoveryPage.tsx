@@ -13,6 +13,7 @@ import { Button } from "../components/Button";
 import { Spinner } from "../components/Spinner";
 import { PageHeader, PlaylistSelect } from "../components/PlaylistPicker";
 import { formatRelative } from "../lib/format";
+import { useQuotaCooldown } from "../lib/quota";
 
 const KIND_LABEL: Record<string, string> = {
   followed_artist: "Followed artist",
@@ -23,6 +24,10 @@ const KIND_LABEL: Record<string, string> = {
 export function DiscoveryPage() {
   const toast = useApp((s) => s.toast);
   const refreshPlaylists = useApp((s) => s.refreshPlaylists);
+
+  const cooldown = useQuotaCooldown();
+  const paused = cooldown.active;
+  const pausedTitle = paused ? cooldown.reason : undefined;
 
   const [status, setStatus] = useState<DiscoveryStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -236,6 +241,12 @@ export function DiscoveryPage() {
         {/* 3. Sources */}
         <section className="rounded-lg border border-line bg-panel p-5">
           <h2 className="mb-3 text-base font-semibold">Sources</h2>
+          {paused && (
+            <div className="mb-3 rounded-md border border-amber-400/40 bg-amber-400/10 p-3 text-xs text-amber-200" title={cooldown.reason}>
+              <span className="font-semibold text-amber-300">Indexing paused:</span> Spotify's API quota was exceeded.
+              Artist lookups resume in {cooldown.remaining}. Discover still works with what is already in the pool.
+            </div>
+          )}
           {status && status.sources.length > 0 ? (
             <ul className="mb-4 divide-y divide-line rounded-md border border-line">
               {status.sources.map((s) => (
@@ -260,7 +271,7 @@ export function DiscoveryPage() {
             <div className="rounded-md border border-line p-3">
               <div className="mb-2 text-sm font-medium">Followed artists</div>
               {followed === null ? (
-                <Button variant="secondary" onClick={loadFollowed} disabled={busy !== null}>
+                <Button variant="secondary" onClick={loadFollowed} disabled={paused || busy !== null} title={pausedTitle}>
                   {busy === "followed" ? <Spinner /> : "Load followed artists"}
                 </Button>
               ) : (
@@ -291,7 +302,7 @@ export function DiscoveryPage() {
                       </li>
                     ))}
                   </ul>
-                  <Button onClick={indexFollowed} disabled={busy !== null || pickedArtists.size === 0}>
+                  <Button onClick={indexFollowed} disabled={paused || busy !== null || pickedArtists.size === 0} title={pausedTitle}>
                     {busy === "index" ? <Spinner /> : `Index ${pickedArtists.size} artists`}
                   </Button>
                 </>
@@ -320,7 +331,7 @@ export function DiscoveryPage() {
                   placeholder="Search an artist"
                   className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-sm outline-none focus:border-spotify"
                 />
-                <Button variant="secondary" onClick={searchArtist} disabled={busy !== null || !artistQuery.trim()}>
+                <Button variant="secondary" onClick={searchArtist} disabled={paused || busy !== null || !artistQuery.trim()} title={pausedTitle}>
                   {busy === "search" ? <Spinner /> : "Search"}
                 </Button>
               </div>
@@ -330,8 +341,9 @@ export function DiscoveryPage() {
                     <li key={a.id}>
                       <button
                         onClick={() => addSeedArtist(a)}
-                        disabled={busy !== null}
-                        className="flex w-full items-center gap-2 px-2 py-1 text-left text-sm hover:bg-panel-2"
+                        disabled={paused || busy !== null}
+                        title={pausedTitle}
+                        className="flex w-full items-center gap-2 px-2 py-1 text-left text-sm hover:bg-panel-2 disabled:opacity-50"
                       >
                         <span className="truncate">{a.name}</span>
                         <span className="ml-auto shrink-0 text-xs text-spotify">+ index</span>
@@ -359,7 +371,12 @@ export function DiscoveryPage() {
                   placeholder="or paste a link, URI or id"
                   className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-sm outline-none focus:border-spotify"
                 />
-                <Button variant="secondary" onClick={addSeedPlaylist} disabled={busy !== null || !seedRef.trim()}>
+                <Button
+                  variant="secondary"
+                  onClick={addSeedPlaylist}
+                  disabled={busy !== null || !seedRef.trim() || (paused && seedExpand)}
+                  title={paused && seedExpand ? `${cooldown.reason} Untick "Explore its artists" to add the playlist's own tracks only.` : undefined}
+                >
                   {busy === "seed-playlist" ? <Spinner /> : "Add"}
                 </Button>
               </div>

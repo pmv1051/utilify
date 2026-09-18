@@ -25,6 +25,28 @@ const MAX_ATTEMPTS: u32 = 5;
 const MAX_RETRY_AFTER_SECS: u64 = 60;
 /// Refresh the access token this many seconds before it actually expires.
 const REFRESH_LEEWAY_SECS: i64 = 60;
+/// After `QUOTA_EXCEEDED`, artist-family calls are refused locally for this long.
+pub const QUOTA_COOLDOWN_SECS: i64 = 24 * 3600;
+
+/// Where cooldown changes are broadcast to the UI (`quota-cooldown` event).
+static EVENT_SINK: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
+
+pub fn set_event_sink(app: tauri::AppHandle) {
+    let _ = EVENT_SINK.set(app);
+}
+
+/// Endpoints that burned the quota on live runs; paused during a cooldown so
+/// the app stops making it worse. Playlist/playback endpoints stay open.
+fn is_gated_path(path: &str) -> bool {
+    let p = path.strip_prefix(API_BASE).unwrap_or(path);
+    p.starts_with("/artists/") || p.starts_with("/albums/") || p.starts_with("/me/following")
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuotaStatus {
+    pub cooldown_until: Option<i64>,
+}
 
 #[derive(Clone)]
 pub struct SpotifyClient {
@@ -143,6 +165,41 @@ impl SpotifyClient {
             }
             Err(e) => Err(e),
         }
+    }
+
+    // ---- quota cooldown ----------------------------------------------------
+
+    pub fn quota_status(&self) -> QuotaStatus {
+        let until = self
+            .db
+            .with(|c| config::get(c, config::QUOTA_COOLDOWN_UNTIL))
+            .ok()
+            .flatten()
+            .and_then(|s| s.parse::<i64>().ok())
+            .filter(|u| *u > now());
+        QuotaStatus { cooldown_until: until }
+    }
+
+    fn start_quota_cooldown(&self) {
+        let until = now() + QUOTA_COOLDOWN_SECS;
+        if let Err(e) = self
+            .db
+            .with(|c| config::set(c, config::QUOTA_COOLDOWN_UNTIL, &until.to_string()))
+        {
+            log::warn!("could not record quota cooldown: {e}");
+        }
+        log::warn!("QUOTA_EXCEEDED: artist-family API calls paused until {until}");
+        if let Some(app) = EVENT_SINK.get() {
+            let _ = tauri::Emitter::emit(app, "quota-cooldown", QuotaStatus { cooldown_until: Some(until) });
+        }
+    }
+
+    pub fn clear_quota_cooldown(&self) -> Result<()> {
+        self.db.with(|c| config::delete(c, config::QUOTA_COOLDOWN_UNTIL))?;
+        if let Some(app) = EVENT_SINK.get() {
+            let _ = tauri::Emitter::emit(app, "quota-cooldown", QuotaStatus { cooldown_until: None });
+        }
+        Ok(())
     }
 
     // ---- request helpers ---------------------------------------------------
@@ -305,6 +362,11 @@ impl SpotifyClient {
         query: &[(&str, String)],
         body: Option<&Value>,
     ) -> Result<Option<String>> {
+        if is_gated_path(url) {
+            if let Some(until) = self.quota_status().cooldown_until {
+                return Err(AppError::QuotaCooldown { until });
+            }
+        }
         let mut refreshed_after_401 = false;
         for attempt in 1..=MAX_ATTEMPTS {
             let token = self.access_token().await?;
@@ -377,6 +439,7 @@ impl SpotifyClient {
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     if reason.as_deref() == Some("QUOTA_EXCEEDED") || text.contains("QUOTA_EXCEEDED") {
+                        self.start_quota_cooldown();
                         return Err(AppError::QuotaExceeded);
                     }
                     if attempt >= MAX_ATTEMPTS {

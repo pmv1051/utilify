@@ -280,6 +280,10 @@ export interface DiscoveryProgress {
   label: string;
 }
 
+export interface QuotaStatus {
+  cooldownUntil: number | null;
+}
+
 export interface IndexResult {
   indexed: number;
   skippedFresh: number;
@@ -402,6 +406,8 @@ export const api = {
   importSearch: (lines: string[]) => invoke<ImportMatch[]>("import_search", { lines }),
 
   setPlayThreshold: (secs: number) => invoke<void>("set_play_threshold", { secs }),
+  getQuotaStatus: () => invoke<QuotaStatus>("get_quota_status"),
+  clearQuotaCooldown: () => invoke<void>("clear_quota_cooldown"),
 
   getDiscoveryStatus: () => invoke<DiscoveryStatus>("get_discovery_status"),
   rebuildLibraryIndex: () => invoke<LibraryIndexInfo>("rebuild_library_index"),

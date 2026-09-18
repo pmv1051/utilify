@@ -4,6 +4,7 @@ import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
 import { Spinner } from "../components/Spinner";
 import { PageHeader } from "../components/PlaylistPicker";
+import { useQuotaCooldown } from "../lib/quota";
 
 const GROUP_LABEL: Record<string, string> = {
   album: "Albums",
@@ -16,6 +17,8 @@ const GROUP_ORDER = ["album", "single", "compilation", "appears_on"];
 export function DiscographyPage() {
   const toast = useApp((s) => s.toast);
   const refreshPlaylists = useApp((s) => s.refreshPlaylists);
+  const cooldown = useQuotaCooldown();
+  const paused = cooldown.active;
 
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<ArtistHit[]>([]);
@@ -169,6 +172,13 @@ export function DiscographyPage() {
     <div className="flex h-full flex-col">
       <PageHeader title="Artist Discography" />
       <div className="flex-1 space-y-5 overflow-auto p-6">
+        {paused && (
+          <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200" title={cooldown.reason}>
+            <div className="font-semibold text-amber-300">Paused: Spotify's API quota was exceeded.</div>
+            This tool relies on artist and album lookups, which are on hold for {cooldown.remaining} so the app stops
+            making it worse. Everything else in Utilify keeps working.
+          </div>
+        )}
         <section className="rounded-lg border border-line bg-panel p-5">
           <div className="flex items-center gap-2">
             <input
@@ -176,9 +186,11 @@ export function DiscographyPage() {
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && search()}
               placeholder="Search for an artist"
-              className="w-80 rounded-md border border-line bg-ink px-3 py-1.5 text-sm outline-none focus:border-spotify"
+              disabled={paused}
+              title={paused ? cooldown.reason : undefined}
+              className="w-80 rounded-md border border-line bg-ink px-3 py-1.5 text-sm outline-none focus:border-spotify disabled:opacity-50"
             />
-            <Button onClick={search} disabled={searching || !query.trim()}>
+            <Button onClick={search} disabled={paused || searching || !query.trim()} title={paused ? cooldown.reason : undefined}>
               {searching ? <Spinner /> : "Search"}
             </Button>
             {artist && (
@@ -310,7 +322,7 @@ export function DiscographyPage() {
                 Randomize order
               </label>
               <div className="ml-auto">
-                <Button onClick={build} disabled={chosen.size === 0 || building}>
+                <Button onClick={build} disabled={paused || chosen.size === 0 || building} title={paused ? cooldown.reason : undefined}>
                   {building ? <Spinner /> : "Create playlist"}
                 </Button>
               </div>

@@ -151,7 +151,10 @@ pub struct IndexResult {
 }
 
 fn is_quota(e: &AppError) -> bool {
-    matches!(e, AppError::QuotaExceeded | AppError::RateLimited)
+    matches!(
+        e,
+        AppError::QuotaExceeded | AppError::RateLimited | AppError::QuotaCooldown { .. }
+    )
 }
 
 /// Index the newest `max_releases` albums/singles of each artist into the pool.
