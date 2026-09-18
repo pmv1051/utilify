@@ -30,6 +30,9 @@ jobs:
           - platform: windows-latest
             args: ""
 
+    # Only version tags produce releases; a manual run on a branch would create a
+    # mis-named draft.
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
