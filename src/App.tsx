@@ -7,6 +7,8 @@ import { PlaylistsPage } from "./pages/PlaylistsPage";
 import { RandomizerPage } from "./pages/RandomizerPage";
 import { BenchPage } from "./pages/BenchPage";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
+import { DiffPage } from "./pages/DiffPage";
+import { MergePage } from "./pages/MergePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { NowPlaying } from "./components/NowPlaying";
@@ -73,7 +75,9 @@ export default function App() {
           {page === "randomizer" && <RandomizerPage />}
           {page === "bench" && <BenchPage />}
           {page === "duplicates" && <DuplicatesPage />}
-          {["diff", "merge", "discography", "editor", "exportimport"].includes(page) && (
+          {page === "diff" && <DiffPage />}
+          {page === "merge" && <MergePage />}
+          {["discography", "editor", "exportimport"].includes(page) && (
             <div className="p-6 text-sm text-muted">This tool is coming next in Phase 3.</div>
           )}
           {page === "settings" && <SettingsPage />}

@@ -1,6 +1,9 @@
 pub mod bench;
+pub mod diff;
 pub mod duplicates;
+pub mod generated;
 pub mod matching;
+pub mod merge;
 pub mod randomizer;
 pub mod tracks;
 

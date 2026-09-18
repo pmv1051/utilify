@@ -65,6 +65,11 @@ pub fn run() {
             commands::unbench_track,
             commands::scan_duplicates,
             commands::remove_duplicates,
+            commands::create_playlist_from_tracks,
+            commands::add_tracks_to_playlist,
+            commands::remove_tracks_from_playlist,
+            commands::diff_playlists,
+            commands::merge_playlists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

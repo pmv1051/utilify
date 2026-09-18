@@ -11,7 +11,10 @@ use crate::db::playlists::PlaylistRow;
 use crate::db::randomizer::SessionRow;
 use crate::db::{self, config};
 use crate::error::{AppError, Result};
+use crate::features::diff::{self, DiffResult};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
+use crate::features::generated::{self, GeneratedPlaylist};
+use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
 use crate::features::tracks::{self, TrackInfo};
 use crate::features::{self, bench};
@@ -257,6 +260,55 @@ pub async fn remove_duplicates(
     removals: Vec<RemovalRequest>,
 ) -> Result<RemovalSummary> {
     duplicates::apply_removals(&state, removals).await
+}
+
+// ---- tools: generic playlist actions ---------------------------------------
+
+#[tauri::command]
+pub async fn create_playlist_from_tracks(
+    state: State<'_, AppState>,
+    name: String,
+    uris: Vec<String>,
+    randomize: bool,
+) -> Result<GeneratedPlaylist> {
+    generated::create_from_uris(&state, &name, uris, randomize).await
+}
+
+#[tauri::command]
+pub async fn add_tracks_to_playlist(state: State<'_, AppState>, playlist_id: String, uris: Vec<String>) -> Result<usize> {
+    generated::add_tracks(&state, &playlist_id, &uris).await
+}
+
+#[tauri::command]
+pub async fn remove_tracks_from_playlist(
+    state: State<'_, AppState>,
+    playlist_id: String,
+    uris: Vec<String>,
+) -> Result<usize> {
+    generated::remove_tracks(&state, &playlist_id, &uris).await
+}
+
+// ---- tools: diff & merge ---------------------------------------------------
+
+#[tauri::command]
+pub async fn diff_playlists(
+    state: State<'_, AppState>,
+    a: String,
+    b: String,
+    match_by_name: bool,
+) -> Result<DiffResult> {
+    diff::diff(&state, &a, &b, match_by_name).await
+}
+
+#[tauri::command]
+pub async fn merge_playlists(
+    state: State<'_, AppState>,
+    playlist_ids: Vec<String>,
+    name: String,
+    dedupe_by_name: bool,
+    randomize: bool,
+) -> Result<MergeResult> {
+    merge::merge(&state, &playlist_ids, &name, dedupe_by_name, randomize).await
 }
 
 #[tauri::command]

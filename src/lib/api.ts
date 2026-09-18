@@ -139,6 +139,40 @@ export interface RemovalSummary {
   playlists: number;
 }
 
+export interface GeneratedPlaylist {
+  id: string;
+  name: string;
+  trackCount: number;
+  requested: number;
+}
+
+export interface PlaylistRef {
+  id: string;
+  name: string;
+}
+
+export interface DiffPair {
+  a: TrackRow;
+  b: TrackRow;
+  differentUri: boolean;
+}
+
+export interface DiffResult {
+  a: PlaylistRef;
+  b: PlaylistRef;
+  matchByName: boolean;
+  onlyA: TrackRow[];
+  onlyB: TrackRow[];
+  both: DiffPair[];
+}
+
+export interface MergeResult {
+  playlist: GeneratedPlaylist;
+  sources: number;
+  tracksSeen: number;
+  duplicatesSkipped: number;
+}
+
 export interface BenchRow {
   id: number;
   trackUri: string;
@@ -198,4 +232,16 @@ export const api = {
   scanDuplicates: (playlistIds: string[], matchByName: boolean) =>
     invoke<DuplicateReport>("scan_duplicates", { playlistIds, matchByName }),
   removeDuplicates: (removals: RemovalRequest[]) => invoke<RemovalSummary>("remove_duplicates", { removals }),
+
+  createPlaylistFromTracks: (name: string, uris: string[], randomize: boolean) =>
+    invoke<GeneratedPlaylist>("create_playlist_from_tracks", { name, uris, randomize }),
+  addTracksToPlaylist: (playlistId: string, uris: string[]) =>
+    invoke<number>("add_tracks_to_playlist", { playlistId, uris }),
+  removeTracksFromPlaylist: (playlistId: string, uris: string[]) =>
+    invoke<number>("remove_tracks_from_playlist", { playlistId, uris }),
+
+  diffPlaylists: (a: string, b: string, matchByName: boolean) =>
+    invoke<DiffResult>("diff_playlists", { a, b, matchByName }),
+  mergePlaylists: (playlistIds: string[], name: string, dedupeByName: boolean, randomize: boolean) =>
+    invoke<MergeResult>("merge_playlists", { playlistIds, name, dedupeByName, randomize }),
 };
