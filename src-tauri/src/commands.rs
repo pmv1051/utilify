@@ -14,7 +14,7 @@ use crate::error::{AppError, Result};
 use crate::features::diff::{self, DiffResult};
 use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
 use crate::features::discovery::{
-    self, ArtistRef, DiscoverResult, DiscoveryStatus, LibraryIndexInfo, SeedPlaylistResult,
+    self, ArtistRef, DiscoverResult, DiscoveryStatus, IndexResult, LibraryIndexInfo, SeedPlaylistResult,
 };
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
 use crate::features::editor::{self, ApplyResult};
@@ -370,7 +370,7 @@ pub async fn index_discovery_artists(
     kind: String,
     max_releases: usize,
     force: bool,
-) -> Result<usize> {
+) -> Result<IndexResult> {
     discovery::index_artists(&app, &state, &artists, &kind, max_releases, force).await
 }
 

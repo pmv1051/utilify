@@ -141,8 +141,22 @@ pub struct ArtistRef {
     pub name: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IndexResult {
+    pub indexed: usize,
+    pub skipped_fresh: usize,
+    /// Set when the run stopped early (API quota); what was indexed is kept.
+    pub warning: Option<String>,
+}
+
+fn is_quota(e: &AppError) -> bool {
+    matches!(e, AppError::QuotaExceeded | AppError::RateLimited)
+}
+
 /// Index the newest `max_releases` albums/singles of each artist into the pool.
-/// Cost per artist: one release listing plus one request per release.
+/// Cost per artist: one release listing plus one request per release. A
+/// quota error stops the run but keeps every artist finished so far.
 pub async fn index_artists(
     app: &AppHandle,
     state: &AppState,
@@ -150,32 +164,55 @@ pub async fn index_artists(
     kind: &str,
     max_releases: usize,
     force: bool,
-) -> Result<usize> {
+) -> Result<IndexResult> {
     if !matches!(kind, "followed_artist" | "seed_artist") {
         return Err(AppError::other("unknown source kind"));
     }
     let max_releases = max_releases.clamp(1, 50);
     let total = list.len();
     let mut indexed = 0usize;
+    let mut skipped_fresh = 0usize;
+    let mut warning = None;
     for (i, a) in list.iter().enumerate() {
         let key = format!("{kind}:{}", a.id);
         progress(app, "artists", i, total, &a.name);
         if !force {
             if let Some(existing) = state.db.with(|c| ddb::get_source(c, &key))? {
                 if now() - existing.indexed_at < SOURCE_FRESH_SECS {
+                    skipped_fresh += 1;
                     continue;
                 }
             }
         }
 
-        let mut releases = artists::artist_albums(&state.spotify, &a.id, "album,single").await?;
+        let mut releases = match artists::artist_albums(&state.spotify, &a.id, "album,single").await {
+            Ok(r) => r,
+            Err(e) if is_quota(&e) => {
+                warning = Some(format!(
+                    "Spotify's API quota ran out after {indexed} of {total} artists ({} not indexed). \
+                     What was indexed is kept; run it again later to finish.",
+                    total - i
+                ));
+                break;
+            }
+            Err(e) => return Err(e),
+        };
         releases.sort_by(|x, y| y.release_date.cmp(&x.release_date));
         releases.truncate(max_releases);
 
         let mut tracks: Vec<(String, String, String, Option<String>, String)> = Vec::new();
+        let mut quota_hit = false;
         for r in &releases {
             tokio::time::sleep(THROTTLE).await;
-            for t in artists::album_tracks(&state.spotify, &r.id).await? {
+            let album_tracks = match artists::album_tracks(&state.spotify, &r.id).await {
+                Ok(t) => t,
+                Err(e) if is_quota(&e) => {
+                    quota_hit = true;
+                    break;
+                }
+                Err(e) => return Err(e),
+            };
+            for t in album_tracks {
                 if !t.is_playable_catalog_track() || !t.artists.iter().any(|x| x.id.as_deref() == Some(a.id.as_str())) {
                     continue;
                 }
@@ -200,13 +237,37 @@ pub async fn index_artists(
             indexed_at: now(),
             track_count: rows.len() as i64,
         };
+        if quota_hit {
+            // Partial artist: keep what we got but do not mark it fresh, so a
+            // later run completes it.
+            if !rows.is_empty() {
+                let stale = SourceRow {
+                    indexed_at: 0,
+                    ..source
+                };
+                state.db.with_mut(|c| ddb::replace_source(c, &stale, &rows))?;
+            }
+            warning = Some(format!(
+                "Spotify's API quota ran out while indexing {} ({indexed} of {total} artists done). \
+                 What was indexed is kept; run it again later to finish.",
+                a.name
+            ));
+            break;
+        }
         state.db.with_mut(|c| ddb::replace_source(c, &source, &rows))?;
         indexed += 1;
         log::info!("discovery: indexed {} ({} releases, {} tracks)", a.name, releases.len(), rows.len());
         tokio::time::sleep(THROTTLE).await;
     }
     progress(app, "artists", total, total, "done");
-    Ok(indexed)
+    if let Some(w) = &warning {
+        log::warn!("discovery: {w}");
+    }
+    Ok(IndexResult {
+        indexed,
+        skipped_fresh,
+        warning,
+    })
 }
 
 /// Accepts a playlist id, `spotify:playlist:…` URI, or open.spotify.com URL.
@@ -229,6 +290,8 @@ pub struct SeedPlaylistResult {
     pub source: SourceRow,
     /// Artists from the playlist that were indexed as `seed_artist` sources.
     pub artists_indexed: usize,
+    pub artists_total: usize,
+    pub warning: Option<String>,
 }
 
 /// A seed playlist is a starting point, not the destination: its own tracks
@@ -246,17 +309,22 @@ pub async fn add_seed_playlist(
 ) -> Result<SeedPlaylistResult> {
     let id = parse_playlist_ref(reference)
         .ok_or_else(|| AppError::other("Paste a Spotify playlist link, URI, or id."))?;
-    let meta = playlists::get_playlist(&state.spotify, &id).await?;
-    progress(app, "seed", 0, 1, &meta.name);
-    // Dev-mode apps get 403 on the tracks of playlists the user neither owns
-    // nor follows (live 2026-09-18), even when the playlist is public.
+    // Library playlists have a cached name; only foreign ones cost a request.
+    let name = match state.db.with(|c| db::playlists::get(c, &id, None))? {
+        Some(p) => p.name,
+        None => playlists::get_playlist(&state.spotify, &id).await?.name,
+    };
+    progress(app, "seed", 0, 1, &name);
+    // Dev-mode apps get 403 on the tracks of playlists the user does not own
+    // (live 2026-09-18: public, and still after following). Copying the
+    // playlist into the library (Spotify: "Add to other playlist") works.
     let tracks = match fetch_playlist(state, &id).await {
         Ok(t) => t,
         Err(AppError::Spotify { status: 403, .. }) => {
             return Err(AppError::other(format!(
-                "Spotify refuses to read the tracks of \"{}\" (403). In development mode the API only opens \
-                 playlists you own or follow. Follow it in Spotify, refresh Playlists, then add it here.",
-                meta.name
+                "Spotify refuses to read the tracks of \"{name}\" (403). In development mode the API only opens \
+                 playlists you own. Copy its tracks into a playlist of your own in Spotify, refresh Playlists, \
+                 then pick that copy here."
             )));
         }
         Err(e) => return Err(e),
@@ -280,7 +348,7 @@ pub async fn add_seed_playlist(
     let source = SourceRow {
         key: format!("seed_playlist:{id}"),
         kind: "seed_playlist".into(),
-        label: meta.name.clone(),
+        label: if include_tracks { name.clone() } else { format!("{name} (artists only)") },
         indexed_at: now(),
         track_count: rows.len() as i64,
     };
@@ -288,6 +356,8 @@ pub async fn add_seed_playlist(
     progress(app, "seed", 1, 1, "done");
 
     let mut artists_indexed = 0;
+    let mut artists_total = 0;
+    let mut warning = None;
     if expand_artists && max_artists > 0 {
         // Primary artists, most frequent first.
         let mut counts: std::collections::HashMap<String, (String, usize)> = std::collections::HashMap::new();
@@ -306,11 +376,16 @@ pub async fn add_seed_playlist(
             .take(max_artists)
             .map(|(id, name, _)| ArtistRef { id, name })
             .collect();
-        artists_indexed = index_artists(app, state, &list, "seed_artist", max_releases, false).await?;
+        artists_total = list.len();
+        let r = index_artists(app, state, &list, "seed_artist", max_releases, false).await?;
+        artists_indexed = r.indexed + r.skipped_fresh;
+        warning = r.warning;
     }
     Ok(SeedPlaylistResult {
         source,
         artists_indexed,
+        artists_total,
+        warning,
     })
 }
 

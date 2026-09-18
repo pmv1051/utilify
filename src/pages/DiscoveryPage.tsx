@@ -36,7 +36,7 @@ export function DiscoveryPage() {
   const [seedRef, setSeedRef] = useState("");
   const [seedIncludeTracks, setSeedIncludeTracks] = useState(false);
   const [seedExpand, setSeedExpand] = useState(true);
-  const [seedMaxArtists, setSeedMaxArtists] = useState(15);
+  const [seedMaxArtists, setSeedMaxArtists] = useState(10);
 
   const [count, setCount] = useState(50);
   const [mode, setMode] = useState<"queue" | "playlist">("playlist");
@@ -92,8 +92,9 @@ export function DiscoveryPage() {
   const indexFollowed = () =>
     run("index", async () => {
       const chosen = (followed ?? []).filter((a) => pickedArtists.has(a.id)).map((a) => ({ id: a.id, name: a.name }));
-      const n = await api.indexDiscoveryArtists(chosen, "followed_artist", maxReleases, false);
-      return `Indexed ${n} artist${n === 1 ? "" : "s"} (${chosen.length - n} already fresh).`;
+      const r = await api.indexDiscoveryArtists(chosen, "followed_artist", maxReleases, false);
+      if (r.warning) toast("info", r.warning);
+      return `Indexed ${r.indexed} artist${r.indexed === 1 ? "" : "s"}${r.skippedFresh ? ` (${r.skippedFresh} already fresh)` : ""}.`;
     });
 
   const searchArtist = () =>
@@ -103,10 +104,11 @@ export function DiscoveryPage() {
 
   const addSeedArtist = (a: ArtistHit) =>
     run("seed-artist", async () => {
-      await api.indexDiscoveryArtists([{ id: a.id, name: a.name }], "seed_artist", maxReleases, true);
+      const r = await api.indexDiscoveryArtists([{ id: a.id, name: a.name }], "seed_artist", maxReleases, true);
       setArtistHits([]);
       setArtistQuery("");
-      return `Indexed ${a.name}.`;
+      if (r.warning) toast("info", r.warning);
+      return r.indexed > 0 ? `Indexed ${a.name}.` : undefined;
     });
 
   const addSeedPlaylist = () =>
@@ -119,9 +121,10 @@ export function DiscoveryPage() {
         maxReleases,
       });
       setSeedRef("");
+      if (r.warning) toast("info", r.warning);
       const parts = [`"${r.source.label}"`];
       if (seedIncludeTracks) parts.push(`${r.source.trackCount} of its tracks`);
-      if (seedExpand) parts.push(`${r.artistsIndexed} of its artists indexed`);
+      if (seedExpand) parts.push(`${r.artistsIndexed} of ${r.artistsTotal} artists indexed`);
       return `Seeded from ${parts.join(", ")}.`;
     });
 
@@ -240,7 +243,8 @@ export function DiscoveryPage() {
                   <span className="w-28 shrink-0 text-xs text-muted">{KIND_LABEL[s.kind] ?? s.kind}</span>
                   <span className="min-w-0 flex-1 truncate">{s.label}</span>
                   <span className="shrink-0 text-xs text-muted">
-                    {s.trackCount} tracks · {formatRelative(s.indexedAt)}
+                    {s.kind === "seed_playlist" && s.trackCount === 0 ? "expanded to its artists" : `${s.trackCount} tracks`}
+                    {s.indexedAt > 0 ? ` · ${formatRelative(s.indexedAt)}` : " · incomplete (quota), re-run to finish"}
                   </span>
                   <button className="text-xs text-muted hover:text-red-400" onClick={() => removeSource(s.key)} disabled={busy !== null}>
                     remove
@@ -360,8 +364,8 @@ export function DiscoveryPage() {
                 </Button>
               </div>
               <p className="mt-1 text-xs text-amber-400/80">
-                Spotify's development mode only lets the app read playlists you own or follow. To seed from someone
-                else's playlist, follow it in Spotify first and refresh Playlists.
+                Spotify's development mode only lets the app read playlists you own. To seed from someone else's
+                playlist, copy its tracks into a playlist of yours in Spotify, refresh Playlists, then pick the copy.
               </p>
               <div className="mt-2 space-y-1 text-xs text-zinc-300">
                 <label className="flex items-center gap-2">

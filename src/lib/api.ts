@@ -280,6 +280,12 @@ export interface DiscoveryProgress {
   label: string;
 }
 
+export interface IndexResult {
+  indexed: number;
+  skippedFresh: number;
+  warning: string | null;
+}
+
 export interface DiscoverResult {
   mode: "queue" | "playlist" | string;
   offered: DiscoveryCandidate[];
@@ -401,14 +407,18 @@ export const api = {
   rebuildLibraryIndex: () => invoke<LibraryIndexInfo>("rebuild_library_index"),
   listFollowedArtists: () => invoke<ArtistHit[]>("list_followed_artists"),
   indexDiscoveryArtists: (artists: { id: string; name: string }[], kind: string, maxReleases: number, force: boolean) =>
-    invoke<number>("index_discovery_artists", { artists, kind, maxReleases, force }),
+    invoke<IndexResult>("index_discovery_artists", { artists, kind, maxReleases, force }),
   addSeedPlaylist: (args: {
     reference: string;
     includeTracks: boolean;
     expandArtists: boolean;
     maxArtists: number;
     maxReleases: number;
-  }) => invoke<{ source: DiscoverySource; artistsIndexed: number }>("add_seed_playlist", args),
+  }) =>
+    invoke<{ source: DiscoverySource; artistsIndexed: number; artistsTotal: number; warning: string | null }>(
+      "add_seed_playlist",
+      args,
+    ),
   removeDiscoverySource: (key: string) => invoke<void>("remove_discovery_source", { key }),
   discover: (count: number, mode: "queue" | "playlist") => invoke<DiscoverResult>("discover", { count, mode }),
 };
