@@ -1,5 +1,8 @@
 pub mod bench;
+pub mod duplicates;
+pub mod matching;
 pub mod randomizer;
+pub mod tracks;
 
 use crate::db::playlists::PlaylistRow;
 use crate::db::{self, now, Db};

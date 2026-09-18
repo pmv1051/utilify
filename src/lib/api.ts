@@ -93,11 +93,50 @@ export type PlayerAction = "play" | "pause" | "next" | "previous" | "seek" | "sh
 
 export interface TrackRow {
   uri: string;
+  id: string | null;
   name: string;
   artists: string;
+  artistIds: string[];
   album: string | null;
   durationMs: number | null;
+  addedAt: string | null;
+  /** Index among all playlist items, as the Spotify API counts positions. */
   position: number;
+  isLocal: boolean;
+  playable: boolean;
+}
+
+export interface DuplicateOccurrence {
+  playlistId: string;
+  playlistName: string;
+  track: TrackRow;
+}
+
+export interface DuplicateGroup {
+  key: string;
+  matchKind: "uri" | "name";
+  name: string;
+  artists: string;
+  occurrences: DuplicateOccurrence[];
+}
+
+export interface DuplicateReport {
+  mode: "single" | "cross";
+  playlistsScanned: number;
+  tracksScanned: number;
+  groups: DuplicateGroup[];
+}
+
+export interface RemovalRequest {
+  playlistId: string;
+  uri: string;
+  positions: number[];
+}
+
+export interface RemovalSummary {
+  removed: number;
+  reAdded: number;
+  playlists: number;
 }
 
 export interface BenchRow {
@@ -155,4 +194,8 @@ export const api = {
   }) => invoke<BenchRow>("bench_track", args),
   getBenchedTracks: () => invoke<BenchRow[]>("get_benched_tracks"),
   unbenchTrack: (id: number) => invoke<BenchRow>("unbench_track", { id }),
+
+  scanDuplicates: (playlistIds: string[], matchByName: boolean) =>
+    invoke<DuplicateReport>("scan_duplicates", { playlistIds, matchByName }),
+  removeDuplicates: (removals: RemovalRequest[]) => invoke<RemovalSummary>("remove_duplicates", { removals }),
 };

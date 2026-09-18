@@ -11,7 +11,9 @@ use crate::db::playlists::PlaylistRow;
 use crate::db::randomizer::SessionRow;
 use crate::db::{self, config};
 use crate::error::{AppError, Result};
+use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
 use crate::features::randomizer::{self, RandomizeResult};
+use crate::features::tracks::{self, TrackInfo};
 use crate::features::{self, bench};
 use crate::spotify::models::PlaybackState;
 use crate::spotify::{auth, playback, playlists};
@@ -228,35 +230,33 @@ pub fn stop_randomizer_session(state: State<'_, AppState>, shadow_playlist_id: S
 
 // ---- bench -----------------------------------------------------------------
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TrackRow {
-    pub uri: String,
-    pub name: String,
-    pub artists: String,
-    pub album: Option<String>,
-    pub duration_ms: Option<u64>,
-    pub position: i64,
+/// Copyable tracks of a playlist, in order, with true API positions.
+#[tauri::command]
+pub async fn get_playlist_tracks(state: State<'_, AppState>, playlist_id: String) -> Result<Vec<TrackInfo>> {
+    Ok(tracks::fetch_playlist(&state, &playlist_id)
+        .await?
+        .into_iter()
+        .filter(|t| t.playable)
+        .collect())
 }
 
-/// Copyable tracks of a playlist, in order, for pickers (Bench, later tools).
+// ---- tools: duplicates -----------------------------------------------------
+
 #[tauri::command]
-pub async fn get_playlist_tracks(state: State<'_, AppState>, playlist_id: String) -> Result<Vec<TrackRow>> {
-    let tracks = playlists::get_playlist_tracks(&state.spotify, &playlist_id).await?;
-    Ok(tracks
-        .into_iter()
-        .enumerate()
-        .filter_map(|(i, t)| {
-            Some(TrackRow {
-                uri: t.uri.clone()?,
-                artists: t.artist_names(),
-                album: t.album.as_ref().map(|a| a.name.clone()),
-                duration_ms: t.duration_ms,
-                name: t.name,
-                position: i as i64,
-            })
-        })
-        .collect())
+pub async fn scan_duplicates(
+    state: State<'_, AppState>,
+    playlist_ids: Vec<String>,
+    match_by_name: bool,
+) -> Result<DuplicateReport> {
+    duplicates::scan(&state, &playlist_ids, match_by_name).await
+}
+
+#[tauri::command]
+pub async fn remove_duplicates(
+    state: State<'_, AppState>,
+    removals: Vec<RemovalRequest>,
+) -> Result<RemovalSummary> {
+    duplicates::apply_removals(&state, removals).await
 }
 
 #[tauri::command]

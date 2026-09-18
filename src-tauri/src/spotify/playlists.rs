@@ -42,10 +42,15 @@ pub struct PlaylistItems {
     pub skipped: Vec<MissingTrack>,
 }
 
+/// Every entry of a playlist as Spotify returns it, including local files,
+/// episodes and null tracks. Index in this Vec == API position.
+pub async fn get_playlist_entries(c: &SpotifyClient, id: &str) -> Result<Vec<PlaylistEntry>> {
+    c.get_all_pages(&format!("/playlists/{id}/items"), &[("limit", "50".into())])
+        .await
+}
+
 pub async fn get_playlist_items(c: &SpotifyClient, id: &str) -> Result<PlaylistItems> {
-    let entries: Vec<PlaylistEntry> = c
-        .get_all_pages(&format!("/playlists/{id}/items"), &[("limit", "50".into())])
-        .await?;
+    let entries = get_playlist_entries(c, id).await?;
     let mut tracks = Vec::with_capacity(entries.len());
     let mut skipped = Vec::new();
     for entry in entries {
@@ -137,10 +142,12 @@ pub async fn remove_items(
     let path = format!("/playlists/{id}/items");
     for chunk in uris.chunks(BATCH_SIZE) {
         let entries: Vec<Value> = chunk.iter().map(|u| json!({ "uri": u })).collect();
+        // Live runs showed Spotify accept both shapes at different times; try
+        // the Feb-2026 `items` shape first.
         let keys: &[(&str, u8)] = match REMOVE_KEY.load(Ordering::Relaxed) {
             1 => &[("tracks", 1)],
             2 => &[("items", 2)],
-            _ => &[("tracks", 1), ("items", 2)],
+            _ => &[("items", 2), ("tracks", 1)],
         };
         let mut last_err = None;
         for (key, code) in keys {

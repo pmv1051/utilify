@@ -63,6 +63,8 @@ pub fn run() {
             commands::bench_track,
             commands::get_benched_tracks,
             commands::unbench_track,
+            commands::scan_duplicates,
+            commands::remove_duplicates,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

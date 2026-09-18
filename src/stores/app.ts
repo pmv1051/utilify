@@ -10,7 +10,17 @@ import {
   type SetupState,
 } from "../lib/api";
 
-export type Page = "playlists" | "randomizer" | "bench" | "settings";
+export type Page =
+  | "playlists"
+  | "randomizer"
+  | "bench"
+  | "duplicates"
+  | "diff"
+  | "merge"
+  | "discography"
+  | "editor"
+  | "exportimport"
+  | "settings";
 
 export interface Toast {
   id: number;
