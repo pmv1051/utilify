@@ -111,7 +111,7 @@ export function PlaylistsPage() {
                     disabled={p.trackCount === 0}
                     title="Temporarily remove a track from this playlist"
                   >
-                    Bench…
+                    Bench
                   </Button>
                   {!p.isShadow && (
                     <Button
