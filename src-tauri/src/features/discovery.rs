@@ -223,23 +223,48 @@ pub fn parse_playlist_ref(input: &str) -> Option<String> {
     (s.len() >= 16 && s.chars().all(|c| c.is_ascii_alphanumeric())).then(|| s.to_string())
 }
 
-pub async fn add_seed_playlist(app: &AppHandle, state: &AppState, reference: &str) -> Result<SourceRow> {
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SeedPlaylistResult {
+    pub source: SourceRow,
+    /// Artists from the playlist that were indexed as `seed_artist` sources.
+    pub artists_indexed: usize,
+}
+
+/// A seed playlist is a starting point, not the destination: its own tracks
+/// become candidates (optional) and, more importantly, the artists in it are
+/// indexed so their other releases are explored. `max_artists` caps the
+/// expansion (most frequent artists in the playlist first).
+pub async fn add_seed_playlist(
+    app: &AppHandle,
+    state: &AppState,
+    reference: &str,
+    include_tracks: bool,
+    expand_artists: bool,
+    max_artists: usize,
+    max_releases: usize,
+) -> Result<SeedPlaylistResult> {
     let id = parse_playlist_ref(reference)
         .ok_or_else(|| AppError::other("Paste a Spotify playlist link, URI, or id."))?;
     let meta = playlists::get_playlist(&state.spotify, &id).await?;
     progress(app, "seed", 0, 1, &meta.name);
     let tracks = fetch_playlist(state, &id).await?;
-    let rows: Vec<PoolTrack<'_>> = tracks
-        .iter()
-        .filter(|t| t.playable)
-        .map(|t| PoolTrack {
-            track_uri: &t.uri,
-            name: Some(&t.name),
-            artists: Some(&t.artists),
-            artist_id: t.artist_ids.first().map(String::as_str),
-            album: t.album.as_deref(),
-        })
-        .collect();
+
+    let rows: Vec<PoolTrack<'_>> = if include_tracks {
+        tracks
+            .iter()
+            .filter(|t| t.playable)
+            .map(|t| PoolTrack {
+                track_uri: &t.uri,
+                name: Some(&t.name),
+                artists: Some(&t.artists),
+                artist_id: t.artist_ids.first().map(String::as_str),
+                album: t.album.as_deref(),
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
     let source = SourceRow {
         key: format!("seed_playlist:{id}"),
         kind: "seed_playlist".into(),
@@ -249,7 +274,32 @@ pub async fn add_seed_playlist(app: &AppHandle, state: &AppState, reference: &st
     };
     state.db.with_mut(|c| ddb::replace_source(c, &source, &rows))?;
     progress(app, "seed", 1, 1, "done");
-    Ok(source)
+
+    let mut artists_indexed = 0;
+    if expand_artists && max_artists > 0 {
+        // Primary artists, most frequent first.
+        let mut counts: std::collections::HashMap<String, (String, usize)> = std::collections::HashMap::new();
+        for t in tracks.iter().filter(|t| t.playable) {
+            if let Some(a) = t.artist_refs.first() {
+                if let Some(aid) = &a.id {
+                    let e = counts.entry(aid.clone()).or_insert((a.name.clone(), 0));
+                    e.1 += 1;
+                }
+            }
+        }
+        let mut ranked: Vec<(String, String, usize)> = counts.into_iter().map(|(id, (n, c))| (id, n, c)).collect();
+        ranked.sort_by(|a, b| b.2.cmp(&a.2).then(a.1.cmp(&b.1)));
+        let list: Vec<ArtistRef> = ranked
+            .into_iter()
+            .take(max_artists)
+            .map(|(id, name, _)| ArtistRef { id, name })
+            .collect();
+        artists_indexed = index_artists(app, state, &list, "seed_artist", max_releases, false).await?;
+    }
+    Ok(SeedPlaylistResult {
+        source,
+        artists_indexed,
+    })
 }
 
 pub fn remove_source(state: &AppState, key: &str) -> Result<()> {

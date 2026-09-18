@@ -34,6 +34,9 @@ export function DiscoveryPage() {
   const [artistQuery, setArtistQuery] = useState("");
   const [artistHits, setArtistHits] = useState<ArtistHit[]>([]);
   const [seedRef, setSeedRef] = useState("");
+  const [seedIncludeTracks, setSeedIncludeTracks] = useState(false);
+  const [seedExpand, setSeedExpand] = useState(true);
+  const [seedMaxArtists, setSeedMaxArtists] = useState(15);
 
   const [count, setCount] = useState(50);
   const [mode, setMode] = useState<"queue" | "playlist">("playlist");
@@ -108,9 +111,18 @@ export function DiscoveryPage() {
 
   const addSeedPlaylist = () =>
     run("seed-playlist", async () => {
-      const s = await api.addSeedPlaylist(seedRef);
+      const r = await api.addSeedPlaylist({
+        reference: seedRef,
+        includeTracks: seedIncludeTracks,
+        expandArtists: seedExpand,
+        maxArtists: seedMaxArtists,
+        maxReleases,
+      });
       setSeedRef("");
-      return `Indexed "${s.label}" (${s.trackCount} tracks).`;
+      const parts = [`"${r.source.label}"`];
+      if (seedIncludeTracks) parts.push(`${r.source.trackCount} of its tracks`);
+      if (seedExpand) parts.push(`${r.artistsIndexed} of its artists indexed`);
+      return `Seeded from ${parts.join(", ")}.`;
     });
 
   const removeSource = (key: string) => run(`remove-${key}`, () => api.removeDiscoverySource(key));
@@ -340,7 +352,29 @@ export function DiscoveryPage() {
                   {busy === "seed-playlist" ? <Spinner /> : "Add"}
                 </Button>
               </div>
-              <p className="mt-2 text-xs text-muted">Someone else's playlist: an editorial mix, a friend's, a chart.</p>
+              <div className="mt-2 space-y-1 text-xs text-zinc-300">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={seedExpand} onChange={(e) => setSeedExpand(e.target.checked)} />
+                  Explore its artists' other releases (up to
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={seedMaxArtists}
+                    onChange={(e) => setSeedMaxArtists(Number(e.target.value))}
+                    className="w-12 rounded-md border border-line bg-ink px-1 py-0.5 text-xs outline-none focus:border-spotify"
+                  />
+                  artists, newest {maxReleases} releases each)
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={seedIncludeTracks} onChange={(e) => setSeedIncludeTracks(e.target.checked)} />
+                  Also use the playlist's own tracks as candidates
+                </label>
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                Someone else's playlist: an editorial mix, a friend's, a chart. It is a starting point; picks are
+                spread evenly across all sources.
+              </p>
             </div>
           </div>
         </section>

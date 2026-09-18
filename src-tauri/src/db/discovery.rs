@@ -135,39 +135,51 @@ pub fn pool_counts(conn: &Connection) -> rusqlite::Result<(i64, i64)> {
     Ok((total, unseen))
 }
 
-/// Random unseen candidates, at most one per artist so a batch is varied.
+/// Random unseen candidates, spread evenly across sources (round-robin) so a
+/// large seed playlist cannot crowd out the artists indexed from it, and at
+/// most one track per artist while alternatives remain.
 pub fn sample_unseen(conn: &Connection, n: usize) -> rusqlite::Result<Vec<Candidate>> {
     let sql = format!(
         "SELECT track_uri, name, artists, album, source_key FROM discovery_pool p
          WHERE {UNSEEN_FILTER} ORDER BY RANDOM() LIMIT ?1"
     );
     let mut stmt = conn.prepare(&sql)?;
-    // Over-sample, then thin to one per artist.
-    let rows = stmt.query_map([(n * 4).max(20) as i64], |r| {
-        Ok((
-            Candidate {
-                track_uri: r.get(0)?,
-                name: r.get(1)?,
-                artists: r.get(2)?,
-                album: r.get(3)?,
-                source_key: r.get(4)?,
-            },
-            r.get::<_, Option<String>>(2)?,
-        ))
+    let rows = stmt.query_map([(n * 10).max(200) as i64], |r| {
+        Ok(Candidate {
+            track_uri: r.get(0)?,
+            name: r.get(1)?,
+            artists: r.get(2)?,
+            album: r.get(3)?,
+            source_key: r.get(4)?,
+        })
     })?;
-    let mut seen_artists = std::collections::HashSet::new();
-    let mut out = Vec::new();
-    let mut spare = Vec::new();
+
+    // Group by source, preserving the random order within each group.
+    let mut by_source: Vec<(String, std::collections::VecDeque<Candidate>)> = Vec::new();
     for row in rows {
-        let (c, artists) = row?;
-        let key = artists.unwrap_or_default().to_lowercase();
-        if seen_artists.insert(key) {
-            out.push(c);
-        } else {
-            spare.push(c);
+        let c = row?;
+        match by_source.iter_mut().find(|(k, _)| *k == c.source_key) {
+            Some((_, q)) => q.push_back(c),
+            None => by_source.push((c.source_key.clone(), std::collections::VecDeque::from([c]))),
         }
-        if out.len() >= n {
-            break;
+    }
+
+    let mut out: Vec<Candidate> = Vec::with_capacity(n);
+    let mut seen_artists = std::collections::HashSet::new();
+    let mut spare: Vec<Candidate> = Vec::new();
+    // Round-robin over sources; first pass prefers unseen artists.
+    while out.len() < n && by_source.iter().any(|(_, q)| !q.is_empty()) {
+        for (_, q) in by_source.iter_mut() {
+            if out.len() >= n {
+                break;
+            }
+            let Some(c) = q.pop_front() else { continue };
+            let key = c.artists.clone().unwrap_or_default().to_lowercase();
+            if seen_artists.insert(key) {
+                out.push(c);
+            } else {
+                spare.push(c);
+            }
         }
     }
     for c in spare {

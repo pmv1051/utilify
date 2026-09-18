@@ -12,9 +12,10 @@ use crate::db::randomizer::SessionRow;
 use crate::db::{self, config};
 use crate::error::{AppError, Result};
 use crate::features::diff::{self, DiffResult};
-use crate::db::discovery::SourceRow;
 use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
-use crate::features::discovery::{self, ArtistRef, DiscoverResult, DiscoveryStatus, LibraryIndexInfo};
+use crate::features::discovery::{
+    self, ArtistRef, DiscoverResult, DiscoveryStatus, LibraryIndexInfo, SeedPlaylistResult,
+};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
 use crate::features::editor::{self, ApplyResult};
 use crate::features::export_import::{self, ExportContent, ImportMatch};
@@ -374,8 +375,18 @@ pub async fn index_discovery_artists(
 }
 
 #[tauri::command]
-pub async fn add_seed_playlist(app: AppHandle, state: State<'_, AppState>, reference: String) -> Result<SourceRow> {
-    discovery::add_seed_playlist(&app, &state, &reference).await
+#[allow(clippy::too_many_arguments)]
+pub async fn add_seed_playlist(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    reference: String,
+    include_tracks: bool,
+    expand_artists: bool,
+    max_artists: usize,
+    max_releases: usize,
+) -> Result<SeedPlaylistResult> {
+    discovery::add_seed_playlist(&app, &state, &reference, include_tracks, expand_artists, max_artists, max_releases)
+        .await
 }
 
 #[tauri::command]

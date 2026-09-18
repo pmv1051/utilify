@@ -402,7 +402,13 @@ export const api = {
   listFollowedArtists: () => invoke<ArtistHit[]>("list_followed_artists"),
   indexDiscoveryArtists: (artists: { id: string; name: string }[], kind: string, maxReleases: number, force: boolean) =>
     invoke<number>("index_discovery_artists", { artists, kind, maxReleases, force }),
-  addSeedPlaylist: (reference: string) => invoke<DiscoverySource>("add_seed_playlist", { reference }),
+  addSeedPlaylist: (args: {
+    reference: string;
+    includeTracks: boolean;
+    expandArtists: boolean;
+    maxArtists: number;
+    maxReleases: number;
+  }) => invoke<{ source: DiscoverySource; artistsIndexed: number }>("add_seed_playlist", args),
   removeDiscoverySource: (key: string) => invoke<void>("remove_discovery_source", { key }),
   discover: (count: number, mode: "queue" | "playlist") => invoke<DiscoverResult>("discover", { count, mode }),
 };
