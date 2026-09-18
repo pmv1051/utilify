@@ -119,7 +119,7 @@ export function SettingsPage() {
           </p>
           {cooldown.active ? (
             <div className="text-sm">
-              <div className="text-amber-300">Spotify calls paused; Utilify retries every 5 minutes (at most {cooldown.remaining}).</div>
+              <div className="text-amber-300">Spotify calls paused; Utilify retries once an hour (at most {cooldown.remaining}).</div>
               <p className="mt-1 text-xs text-muted">{cooldown.reason}</p>
               <Button
                 local
@@ -142,7 +142,7 @@ export function SettingsPage() {
           ) : (
             <p className="text-sm text-muted">
               No pause active. If Spotify reports the app's quota exhausted, Utilify stops calling Spotify, probes
-              every 5 minutes, and resumes by itself when the quota is back.
+              once an hour, and resumes by itself when the quota is back.
             </p>
           )}
         </Section>

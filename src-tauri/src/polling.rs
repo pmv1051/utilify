@@ -45,7 +45,7 @@ pub fn start(app: AppHandle) {
 
 /// While the API quota is exhausted, poll only this often; the first
 /// successful poll ends the pause.
-const QUOTA_PROBE_INTERVAL_SECS: i64 = 5 * 60;
+const QUOTA_PROBE_INTERVAL_SECS: i64 = 60 * 60;
 
 async fn tick(app: &AppHandle) {
     let state = app.state::<AppState>();

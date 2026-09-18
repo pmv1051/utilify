@@ -28,7 +28,7 @@ const REFRESH_LEEWAY_SECS: i64 = 60;
 /// Ceiling for a quota pause. Spotify's Development Mode quota is global to
 /// the app (live 2026-09-18: `/playlists/*/items` and `/me/playlists` 429d
 /// too) and recovers on its own, usually within hours; the polling loop probes
-/// every few minutes and the first successful call ends the pause early.
+/// once an hour and the first successful call ends the pause early.
 pub const QUOTA_COOLDOWN_SECS: i64 = 24 * 3600;
 
 /// Where cooldown changes are broadcast to the UI (`quota-cooldown` event).
@@ -194,7 +194,7 @@ impl SpotifyClient {
         {
             log::warn!("could not record quota cooldown: {e}");
         }
-        log::warn!("QUOTA_EXCEEDED: Spotify API calls paused (probing every few minutes, ceiling {until})");
+        log::warn!("QUOTA_EXCEEDED: Spotify API calls paused (probing once an hour, ceiling {until})");
         if let Some(app) = EVENT_SINK.get() {
             let _ = tauri::Emitter::emit(app, "quota-cooldown", QuotaStatus { cooldown_until: Some(until) });
         }

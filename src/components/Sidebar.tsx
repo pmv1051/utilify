@@ -102,7 +102,7 @@ export function Sidebar() {
       {cooldown.active && (
         <div className="mx-3 mb-2 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-300" title={cooldown.reason}>
           <div className="font-semibold">Spotify API quota exhausted</div>
-          <div className="text-amber-200/80">Paused · retrying every 5 min · at most {cooldown.remaining}</div>
+          <div className="text-amber-200/80">Paused · retrying hourly · at most {cooldown.remaining}</div>
         </div>
       )}
       <div className="px-5 py-4 text-xs text-muted">

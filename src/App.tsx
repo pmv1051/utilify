@@ -58,7 +58,7 @@ export default function App() {
       listen<QuotaStatus>("quota-cooldown", (e) => {
         setQuotaCooldown(e.payload.cooldownUntil);
         if (e.payload.cooldownUntil) {
-          toast("error", "Spotify's API quota for this app is exhausted. Utilify pauses Spotify calls and retries every 5 minutes; it resumes by itself.");
+          toast("error", "Spotify's API quota for this app is exhausted. Utilify pauses Spotify calls and retries once an hour; it resumes by itself.");
         }
       }),
       listen<void>("auth-expired", () => {

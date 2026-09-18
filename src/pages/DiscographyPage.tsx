@@ -175,7 +175,7 @@ export function DiscographyPage() {
         {paused && (
           <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200" title={cooldown.reason}>
             <div className="font-semibold text-amber-300">Paused: Spotify's API quota is exhausted.</div>
-            Utilify retries every 5 minutes and re-enables everything as soon as Spotify answers again (at most{" "}
+            Utilify retries once an hour and re-enables everything as soon as Spotify answers again (at most{" "}
             {cooldown.remaining}).
           </div>
         )}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useApp } from "../stores/app";
+import { useQuotaCooldown } from "../lib/quota";
 
 const inputClass =
   "rounded-md border border-line bg-ink px-3 py-1.5 text-sm outline-none focus:border-spotify disabled:opacity-50";
@@ -21,11 +22,14 @@ export function PlaylistSelect({
   className?: string;
 }) {
   const playlists = useApp((s) => s.playlists);
+  // Picking a playlist usually triggers a read of its tracks (Bench, Editor).
+  const cooldown = useQuotaCooldown();
   return (
     <select
       value={value ?? ""}
       onChange={(e) => onChange(e.target.value || null)}
-      disabled={disabled}
+      disabled={disabled || cooldown.active}
+      title={cooldown.active ? cooldown.reason : undefined}
       className={`${inputClass} min-w-64 ${className}`}
     >
       <option value="">{placeholder}</option>
@@ -53,6 +57,8 @@ export function PlaylistMultiSelect({
   maxHeight?: string;
 }) {
   const playlists = useApp((s) => s.playlists);
+  const cooldown = useQuotaCooldown();
+  disabled = disabled || cooldown.active;
   const [query, setQuery] = useState("");
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -67,7 +73,7 @@ export function PlaylistMultiSelect({
   }
 
   return (
-    <div className="rounded-md border border-line bg-ink">
+    <div className="rounded-md border border-line bg-ink" title={cooldown.active ? cooldown.reason : undefined}>
       <div className="flex items-center gap-2 border-b border-line px-3 py-2">
         <input
           value={query}

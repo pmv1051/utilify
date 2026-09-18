@@ -37,6 +37,6 @@ export function useQuotaCooldown(): Cooldown {
     active: true,
     until,
     remaining,
-    reason: `Temporarily disabled: Spotify's API quota for this app is exhausted. Utilify checks every 5 minutes and re-enables everything as soon as Spotify answers again (at most ${remaining}).`,
+    reason: `Temporarily disabled: Spotify's API quota for this app is exhausted. Utilify checks once an hour and re-enables everything as soon as Spotify answers again (at most ${remaining}).`,
   };
 }
