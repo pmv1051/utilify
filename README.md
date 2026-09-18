@@ -22,16 +22,16 @@ Utilify runs entirely on your computer. Nothing is sent anywhere except Spotify'
 
 ## Install
 
-Download the installer for your platform from the [Releases page](https://github.com/pmv1051/utilify/releases):
+These links always fetch the newest release:
 
-| Platform | File |
+| Platform | Download |
 | --- | --- |
-| Windows | `Utilify_x.y.z_x64-setup.exe` |
-| macOS (Apple Silicon, M1 or newer) | `Utilify_x.y.z_aarch64.dmg` |
-| macOS (Intel) | `Utilify_x.y.z_x64.dmg` |
-| Linux | `Utilify_x.y.z_amd64.AppImage` (any distro) or `.deb` (Debian/Ubuntu) |
+| Windows | [Utilify-windows-x64-setup.exe](https://github.com/pmv1051/utilify/releases/latest/download/Utilify-windows-x64-setup.exe) |
+| macOS (Apple Silicon, M1 or newer) | [Utilify-macos-apple-silicon.dmg](https://github.com/pmv1051/utilify/releases/latest/download/Utilify-macos-apple-silicon.dmg) |
+| macOS (Intel) | [Utilify-macos-intel.dmg](https://github.com/pmv1051/utilify/releases/latest/download/Utilify-macos-intel.dmg) |
+| Linux | [Utilify-linux-x86_64.AppImage](https://github.com/pmv1051/utilify/releases/latest/download/Utilify-linux-x86_64.AppImage) (any distro) or [Utilify-linux-amd64.deb](https://github.com/pmv1051/utilify/releases/latest/download/Utilify-linux-amd64.deb) (Debian/Ubuntu) |
 
-Ignore the other files on the release page: the `.sig`, `.app.tar.gz` and `latest.json` entries are used by the in-app updater, and "Source code" is added by GitHub automatically.
+All versions are on the [Releases page](https://github.com/pmv1051/utilify/releases). Ignore the `.sig`, `.app.tar.gz` and `latest.json` files there: they belong to the in-app updater. "Source code" is added by GitHub automatically.
 
 The installers are not code-signed with a paid certificate, so Windows SmartScreen and macOS Gatekeeper will warn on first launch. On Windows choose "More info → Run anyway"; on macOS right-click the app and choose "Open".
 

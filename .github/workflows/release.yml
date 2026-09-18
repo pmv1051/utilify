@@ -61,6 +61,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> "$GITHUB_ENV"
 
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -86,3 +87,27 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+      # Version-free copies so `releases/latest/download/<name>` links in the
+      # README always point at the newest release.
+      - name: Upload stable-name copies
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
+        run: |
+          mkdir -p stable
+          echo "$ARTIFACTS" | jq -r '.[]' | while read -r f; do
+            f="${f//\\//}"
+            case "$(basename "$f")" in
+              *-setup.exe)    cp "$f" stable/Utilify-windows-x64-setup.exe ;;
+              *_aarch64.dmg)  cp "$f" stable/Utilify-macos-apple-silicon.dmg ;;
+              *_x64.dmg)      cp "$f" stable/Utilify-macos-intel.dmg ;;
+              *.AppImage)     cp "$f" stable/Utilify-linux-x86_64.AppImage ;;
+              *.deb)          cp "$f" stable/Utilify-linux-amd64.deb ;;
+            esac
+          done
+          ls -la stable
+          if [ -n "$(ls -A stable)" ]; then
+            gh release upload "$GITHUB_REF_NAME" stable/* --clobber
+          fi
