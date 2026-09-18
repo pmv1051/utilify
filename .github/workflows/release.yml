@@ -97,7 +97,8 @@ jobs:
           ARTIFACTS: ${{ steps.tauri.outputs.artifactPaths }}
         run: |
           mkdir -p stable
-          echo "$ARTIFACTS" | jq -r '.[]' | while read -r f; do
+          # tr strips the CR that Windows runners append to each line.
+          echo "$ARTIFACTS" | jq -r '.[]' | tr -d '\r' | while read -r f; do
             f="${f//\\//}"
             case "$(basename "$f")" in
               *-setup.exe)    cp "$f" stable/Utilify-windows-x64-setup.exe ;;

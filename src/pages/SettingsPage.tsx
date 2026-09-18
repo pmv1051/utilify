@@ -125,12 +125,12 @@ export function SettingsPage() {
                 local
                 variant="secondary"
                 className="mt-3"
-                title="Only if you know the quota has reset. If it has not, the next call fails and the pause re-arms."
+                title="Only if you know the quota has reset. If it has not, the next call fails and the pause pauses."
                 onClick={async () => {
                   try {
                     await api.clearQuotaCooldown();
                     await refreshQuota();
-                    toast("info", "Cooldown cleared. If Spotify is still out of quota, it will re-arm on the next failure.");
+                    toast("info", "Cooldown cleared. If Spotify is still out of quota, it will pause on the next failure.");
                   } catch (e) {
                     toast("error", errorMessage(e));
                   }
