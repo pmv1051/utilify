@@ -1,7 +1,6 @@
 pub mod bench;
 pub mod config;
 pub mod discovery;
-pub mod genres;
 pub mod migrations;
 pub mod playback_log;
 pub mod playlists;

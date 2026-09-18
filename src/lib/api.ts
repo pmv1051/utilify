@@ -277,32 +277,6 @@ export interface StatsSummary {
   mostSkipped: TrackStat[];
 }
 
-export interface GenreCount {
-  genre: string;
-  count: number;
-}
-
-export interface GenreTrack extends TrackRow {
-  genres: string[];
-}
-
-export interface GenreBreakdown {
-  playlistId: string;
-  playlistName: string;
-  genres: GenreCount[];
-  tracks: GenreTrack[];
-  untagged: number;
-  artistsTotal: number;
-  artistsFetched: number;
-  lookupStrategy: "single" | "search" | string;
-  noTagsFromSpotify: boolean;
-}
-
-export interface GenreProgress {
-  done: number;
-  total: number;
-}
-
 export interface DiscoverySource {
   key: string;
   kind: "followed_artist" | "seed_artist" | "seed_playlist" | string;
@@ -468,8 +442,6 @@ export const api = {
 
   getStats: (rangeDays: number | null) => invoke<StatsSummary>("get_stats", { rangeDays }),
   setPlayThreshold: (secs: number) => invoke<void>("set_play_threshold", { secs }),
-  genreBreakdown: (playlistId: string, force: boolean) =>
-    invoke<GenreBreakdown>("genre_breakdown", { playlistId, force }),
 
   getDiscoveryStatus: () => invoke<DiscoveryStatus>("get_discovery_status"),
   rebuildLibraryIndex: () => invoke<LibraryIndexInfo>("rebuild_library_index"),

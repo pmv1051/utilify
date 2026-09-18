@@ -25,11 +25,6 @@ pub struct ArtistObject {
     pub followers: Option<Followers>,
 }
 
-/// `GET /artists/{id}`.
-pub async fn get_artist(c: &SpotifyClient, id: &str) -> Result<Option<ArtistObject>> {
-    c.get(&format!("/artists/{id}"), &[]).await
-}
-
 #[derive(Debug, Deserialize)]
 struct ArtistSearchResponse {
     #[serde(default)]

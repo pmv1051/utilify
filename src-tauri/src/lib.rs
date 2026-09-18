@@ -82,7 +82,6 @@ pub fn run() {
             commands::import_search,
             commands::get_stats,
             commands::set_play_threshold,
-            commands::genre_breakdown,
             commands::get_discovery_status,
             commands::rebuild_library_index,
             commands::list_followed_artists,

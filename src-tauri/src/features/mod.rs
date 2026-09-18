@@ -6,7 +6,6 @@ pub mod duplicates;
 pub mod editor;
 pub mod export_import;
 pub mod generated;
-pub mod genre;
 pub mod matching;
 pub mod merge;
 pub mod randomizer;

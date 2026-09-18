@@ -19,7 +19,6 @@ use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, Removal
 use crate::features::editor::{self, ApplyResult};
 use crate::features::export_import::{self, ExportContent, ImportMatch};
 use crate::features::generated::{self, GeneratedPlaylist};
-use crate::features::genre::{self, GenreBreakdown};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
 use crate::db::stats::StatsSummary;
@@ -341,18 +340,6 @@ pub async fn save_text_file(app: AppHandle, file_name: String, content: String) 
 #[tauri::command]
 pub async fn import_search(app: AppHandle, state: State<'_, AppState>, lines: Vec<String>) -> Result<Vec<ImportMatch>> {
     export_import::import_search(&app, &state, &lines).await
-}
-
-// ---- tools: genre ----------------------------------------------------------
-
-#[tauri::command]
-pub async fn genre_breakdown(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    playlist_id: String,
-    force: bool,
-) -> Result<GenreBreakdown> {
-    genre::breakdown(&app, &state, &playlist_id, force).await
 }
 
 // ---- discovery -------------------------------------------------------------
