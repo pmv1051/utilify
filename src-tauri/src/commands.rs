@@ -349,10 +349,9 @@ pub async fn search_artists(state: State<'_, AppState>, query: String) -> Result
 pub async fn get_artist_albums(
     state: State<'_, AppState>,
     artist_id: String,
-    include_compilations: bool,
-    include_appears_on: bool,
+    groups: Vec<String>,
 ) -> Result<Vec<AlbumInfo>> {
-    discography::albums(&state, &artist_id, include_compilations, include_appears_on).await
+    discography::albums(&state, &artist_id, &groups).await
 }
 
 #[tauri::command]

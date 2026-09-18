@@ -311,8 +311,8 @@ export const api = {
     invoke<MergeResult>("merge_playlists", { playlistIds, name, dedupeByName, randomize }),
 
   searchArtists: (query: string) => invoke<ArtistHit[]>("search_artists", { query }),
-  getArtistAlbums: (artistId: string, includeCompilations: boolean, includeAppearsOn: boolean) =>
-    invoke<AlbumInfo[]>("get_artist_albums", { artistId, includeCompilations, includeAppearsOn }),
+  getArtistAlbums: (artistId: string, groups: string[]) =>
+    invoke<AlbumInfo[]>("get_artist_albums", { artistId, groups }),
   createDiscography: (args: {
     artistId: string;
     artistName: string;

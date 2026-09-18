@@ -1,8 +1,9 @@
 //! Artist Discography: search an artist, list their releases, build a
 //! deduplicated playlist from the chosen releases.
 
-use std::collections::HashSet;
-use std::time::Duration;
+use std::collections::{HashMap, HashSet};
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
@@ -45,12 +46,46 @@ pub struct DiscographyResult {
     pub other_artist_skipped: usize,
 }
 
+/// Listings are cached for a while so toggling options or revisiting an
+/// artist never re-hits the API (a live run exhausted the quota that way).
+const CACHE_TTL: Duration = Duration::from_secs(15 * 60);
+
+type Cache<T> = Mutex<HashMap<String, (Instant, Vec<T>)>>;
+
+fn album_cache() -> &'static Cache<AlbumInfo> {
+    static C: OnceLock<Cache<AlbumInfo>> = OnceLock::new();
+    C.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn artist_cache() -> &'static Cache<ArtistHit> {
+    static C: OnceLock<Cache<ArtistHit>> = OnceLock::new();
+    C.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn cache_get<T: Clone>(cache: &Cache<T>, key: &str) -> Option<Vec<T>> {
+    let guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+    guard
+        .get(key)
+        .filter(|(at, _)| at.elapsed() < CACHE_TTL)
+        .map(|(_, v)| v.clone())
+}
+
+fn cache_put<T>(cache: &Cache<T>, key: String, value: Vec<T>) {
+    let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
+    guard.retain(|_, (at, _)| at.elapsed() < CACHE_TTL);
+    guard.insert(key, (Instant::now(), value));
+}
+
 pub async fn search(state: &AppState, query: &str) -> Result<Vec<ArtistHit>> {
     let q = query.trim();
     if q.is_empty() {
         return Ok(Vec::new());
     }
-    Ok(artists::search_artists(&state.spotify, q)
+    let key = q.to_lowercase();
+    if let Some(hit) = cache_get(artist_cache(), &key) {
+        return Ok(hit);
+    }
+    let hits: Vec<ArtistHit> = artists::search_artists(&state.spotify, q)
         .await?
         .into_iter()
         .map(|a| ArtistHit {
@@ -60,22 +95,32 @@ pub async fn search(state: &AppState, query: &str) -> Result<Vec<ArtistHit>> {
             name: a.name,
             genres: a.genres,
         })
-        .collect())
+        .collect();
+    cache_put(artist_cache(), key, hits.clone());
+    Ok(hits)
 }
 
-pub async fn albums(
-    state: &AppState,
-    artist_id: &str,
-    include_compilations: bool,
-    include_appears_on: bool,
-) -> Result<Vec<AlbumInfo>> {
-    let mut groups = vec!["album", "single"];
-    if include_compilations {
-        groups.push("compilation");
+const ALLOWED_GROUPS: [&str; 4] = ["album", "single", "compilation", "appears_on"];
+
+/// Releases of an artist for the given `include_groups`. The UI fetches
+/// `album,single,compilation` once per artist and `appears_on` only on
+/// demand; both results are cached.
+pub async fn albums(state: &AppState, artist_id: &str, groups: &[String]) -> Result<Vec<AlbumInfo>> {
+    let mut groups: Vec<&str> = groups
+        .iter()
+        .map(String::as_str)
+        .filter(|g| ALLOWED_GROUPS.contains(g))
+        .collect();
+    groups.sort_unstable();
+    groups.dedup();
+    if groups.is_empty() {
+        return Err(AppError::other("Pick at least one release type."));
     }
-    if include_appears_on {
-        groups.push("appears_on");
+    let key = format!("{artist_id}|{}", groups.join(","));
+    if let Some(hit) = cache_get(album_cache(), &key) {
+        return Ok(hit);
     }
+
     let mut out: Vec<AlbumInfo> = artists::artist_albums(&state.spotify, artist_id, &groups.join(","))
         .await?
         .into_iter()
@@ -95,6 +140,7 @@ pub async fn albums(
         .collect();
     // Oldest first so the playlist reads chronologically.
     out.sort_by(|x, y| x.release_date.cmp(&y.release_date).then(x.name.cmp(&y.name)));
+    cache_put(album_cache(), key, out.clone());
     Ok(out)
 }
 

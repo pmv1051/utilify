@@ -65,9 +65,10 @@ pub struct SimplifiedAlbum {
     pub artists: Vec<Artist>,
 }
 
-/// Per-page size for artist/album listings. The Feb 2026 API rejected 50
-/// with "Invalid limit" on a live run; 20 is the safe value.
-const PAGE_LIMIT: &str = "20";
+/// Per-page size for artist/album listings. The Feb 2026 API rejected 50 and
+/// 20 with "Invalid limit" on live runs; 10 is the user-confirmed value.
+/// `get_all_pages` still adapts downwards if this is ever rejected.
+const PAGE_LIMIT: &str = "10";
 
 /// `GET /artists/{id}/albums`. `include_groups` is a comma list of
 /// `album`, `single`, `compilation`, `appears_on`. `market=from_token`

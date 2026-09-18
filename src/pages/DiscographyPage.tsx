@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage, type AlbumInfo, type ArtistHit, type DiscographyResult } from "../lib/api";
 import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
@@ -24,9 +24,23 @@ export function DiscographyPage() {
 
   const [includeCompilations, setIncludeCompilations] = useState(false);
   const [includeAppearsOn, setIncludeAppearsOn] = useState(false);
-  const [albums, setAlbums] = useState<AlbumInfo[]>([]);
+  // Fetched once per artist: albums + singles + compilations. "Appears on" is
+  // fetched only when first requested. Both are cached for the session so
+  // toggling or revisiting an artist never re-hits the API.
+  const [base, setBase] = useState<AlbumInfo[]>([]);
+  const [appearsOn, setAppearsOn] = useState<AlbumInfo[] | null>(null);
   const [loadingAlbums, setLoadingAlbums] = useState(false);
   const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const albumCache = useRef(new Map<string, AlbumInfo[]>());
+
+  async function fetchGroups(artistId: string, cacheKey: string, groups: string[]): Promise<AlbumInfo[]> {
+    const key = `${artistId}|${cacheKey}`;
+    const hit = albumCache.current.get(key);
+    if (hit) return hit;
+    const list = await api.getArtistAlbums(artistId, groups);
+    albumCache.current.set(key, list);
+    return list;
+  }
 
   const [name, setName] = useState("");
   const [onlyThisArtist, setOnlyThisArtist] = useState(true);
@@ -49,20 +63,22 @@ export function DiscographyPage() {
     }
   }
 
+  // Base listing: once per artist.
   useEffect(() => {
     if (!artist) {
-      setAlbums([]);
+      setBase([]);
+      setAppearsOn(null);
       setChosen(new Set());
       return;
     }
     let cancelled = false;
     setLoadingAlbums(true);
     setResult(null);
-    api
-      .getArtistAlbums(artist.id, includeCompilations, includeAppearsOn)
+    setAppearsOn(null);
+    fetchGroups(artist.id, "base", ["album", "single", "compilation"])
       .then((list) => {
         if (cancelled) return;
-        setAlbums(list);
+        setBase(list);
         // Albums and singles on by default; compilations / appears-on opt-in.
         setChosen(new Set(list.filter((a) => a.group === "album" || a.group === "single").map((a) => a.id)));
       })
@@ -73,7 +89,32 @@ export function DiscographyPage() {
     return () => {
       cancelled = true;
     };
-  }, [artist, includeCompilations, includeAppearsOn, toast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artist, toast]);
+
+  // "Appears on": only when first switched on for this artist.
+  useEffect(() => {
+    if (!artist || !includeAppearsOn || appearsOn !== null) return;
+    let cancelled = false;
+    setLoadingAlbums(true);
+    fetchGroups(artist.id, "appears_on", ["appears_on"])
+      .then((list) => {
+        if (!cancelled) setAppearsOn(list);
+      })
+      .catch((e) => toast("error", errorMessage(e)))
+      .finally(() => {
+        if (!cancelled) setLoadingAlbums(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [artist, includeAppearsOn, appearsOn, toast]);
+
+  const albums = useMemo(() => {
+    const list = base.filter((a) => includeCompilations || a.group !== "compilation");
+    return includeAppearsOn && appearsOn ? [...list, ...appearsOn] : list;
+  }, [base, appearsOn, includeCompilations, includeAppearsOn]);
 
   const grouped = useMemo(() => {
     const m = new Map<string, AlbumInfo[]>();
@@ -191,12 +232,13 @@ export function DiscographyPage() {
               <label className="flex items-center gap-2 text-sm text-zinc-300">
                 <input type="checkbox" checked={includeAppearsOn} onChange={(e) => setIncludeAppearsOn(e.target.checked)} />
                 Include "appears on"
+                {loadingAlbums && base.length > 0 && <Spinner />}
               </label>
               <span className="ml-auto text-xs text-muted">
                 {chosen.size} of {albums.length} releases · about {chosenTracks} tracks before deduplication
               </span>
             </div>
-            {loadingAlbums ? (
+            {loadingAlbums && base.length === 0 ? (
               <div className="flex items-center gap-2 text-sm text-muted">
                 <Spinner /> Loading releases…
               </div>
