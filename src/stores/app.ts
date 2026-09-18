@@ -20,6 +20,9 @@ export type Page =
   | "discography"
   | "editor"
   | "exportimport"
+  | "genre"
+  | "stats"
+  | "discovery"
   | "settings";
 
 export interface Toast {

@@ -19,6 +19,8 @@ use crate::features::export_import::{self, ExportContent, ImportMatch};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
+use crate::db::stats::StatsSummary;
+use crate::features::stats;
 use crate::features::tracks::{self, TrackInfo};
 use crate::features::{self, bench};
 use crate::spotify::models::PlaybackState;
@@ -336,6 +338,13 @@ pub async fn save_text_file(app: AppHandle, file_name: String, content: String) 
 #[tauri::command]
 pub async fn import_search(app: AppHandle, state: State<'_, AppState>, lines: Vec<String>) -> Result<Vec<ImportMatch>> {
     export_import::import_search(&app, &state, &lines).await
+}
+
+// ---- stats -----------------------------------------------------------------
+
+#[tauri::command]
+pub fn get_stats(state: State<'_, AppState>, range_days: Option<u32>) -> Result<StatsSummary> {
+    stats::summary(&state, range_days)
 }
 
 // ---- tools: discography ----------------------------------------------------

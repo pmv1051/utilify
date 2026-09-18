@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use tokio::sync::Notify;
 
 use crate::db::{config, Db};
+use crate::features::stats::CurrentPlay;
 use crate::spotify::client::SpotifyClient;
 use crate::spotify::models::PlaybackState;
 
@@ -14,6 +15,8 @@ pub struct AppState {
     pub db_path: PathBuf,
     /// Most recent playback state observed by the polling loop.
     pub last_playback: Mutex<Option<PlaybackState>>,
+    /// The play currently being logged (see `features::stats`).
+    pub current_play: Mutex<Option<CurrentPlay>>,
     /// Signal the polling loop to run immediately (e.g. right after a randomize).
     pub poll_now: Notify,
 }
@@ -25,6 +28,7 @@ impl AppState {
             spotify,
             db_path,
             last_playback: Mutex::new(None),
+            current_play: Mutex::new(None),
             poll_now: Notify::new(),
         }
     }

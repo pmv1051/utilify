@@ -24,6 +24,14 @@ const groups: { title: string | null; items: Item[] }[] = [
       { id: "discography", label: "Discography", icon: "♪" },
       { id: "editor", label: "Editor", icon: "≡" },
       { id: "exportimport", label: "Export / Import", icon: "⇅" },
+      { id: "genre", label: "Genres", icon: "◔" },
+    ],
+  },
+  {
+    title: "Listening",
+    items: [
+      { id: "stats", label: "Stats", icon: "▤" },
+      { id: "discovery", label: "Discovery", icon: "✦" },
     ],
   },
   {

@@ -36,6 +36,15 @@ export function formatDateTime(unixSeconds: number): string {
   });
 }
 
+/** "3 h 12 min", "45 min", "0 min". */
+export function formatListening(ms: number): string {
+  const min = Math.round(ms / 60000);
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  if (h > 0) return `${h} h ${m} min`;
+  return `${m} min`;
+}
+
 export function artistNames(artists: { name: string }[] | undefined): string {
   if (!artists || artists.length === 0) return "";
   return artists.map((a) => a.name).join(", ");

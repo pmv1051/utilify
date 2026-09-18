@@ -94,6 +94,46 @@ const MIGRATIONS: &[&str] = &[
     r#"
     ALTER TABLE randomizer_sessions ADD COLUMN missing_tracks TEXT;
     "#,
+    // v4: Phase 4. Playback log gains `updated_at` (last poll that touched
+    // the row, used to close rows left open by a crash/quit). Library index
+    // (every track in the user's playlists = "seen"), artist genre cache,
+    // discovery sources + candidate pool.
+    r#"
+    ALTER TABLE playback_log ADD COLUMN updated_at INTEGER;
+
+    CREATE TABLE IF NOT EXISTS library_index (
+        playlist_id TEXT NOT NULL,
+        track_uri   TEXT NOT NULL,
+        PRIMARY KEY (playlist_id, track_uri)
+    );
+    CREATE INDEX IF NOT EXISTS idx_library_track ON library_index(track_uri);
+
+    CREATE TABLE IF NOT EXISTS artist_genres (
+        artist_id TEXT PRIMARY KEY,
+        name      TEXT,
+        genres    TEXT NOT NULL,
+        cached_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS discovery_sources (
+        key         TEXT PRIMARY KEY,
+        kind        TEXT NOT NULL,
+        label       TEXT NOT NULL,
+        indexed_at  INTEGER NOT NULL,
+        track_count INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS discovery_pool (
+        track_uri  TEXT PRIMARY KEY,
+        name       TEXT,
+        artists    TEXT,
+        artist_id  TEXT,
+        album      TEXT,
+        source_key TEXT NOT NULL,
+        added_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_pool_source ON discovery_pool(source_key);
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {

@@ -230,6 +230,57 @@ export interface ImportProgress {
   total: number;
 }
 
+export interface TrackStat {
+  uri: string;
+  name: string | null;
+  artist: string | null;
+  plays: number;
+  listenedMs: number;
+  skips: number;
+}
+
+export interface ArtistStat {
+  artist: string;
+  artistId: string | null;
+  plays: number;
+  listenedMs: number;
+  skips: number;
+}
+
+export interface ContextStat {
+  contextUri: string;
+  plays: number;
+  listenedMs: number;
+}
+
+export interface DayStat {
+  date: string;
+  plays: number;
+  listenedMs: number;
+}
+
+export interface StatsSummary {
+  since: number | null;
+  plays: number;
+  listenedMs: number;
+  uniqueTracks: number;
+  uniqueArtists: number;
+  skips: number;
+  firstLoggedAt: number | null;
+  topTracks: TrackStat[];
+  topArtists: ArtistStat[];
+  contexts: ContextStat[];
+  hours: number[];
+  days: DayStat[];
+  mostSkipped: TrackStat[];
+}
+
+export interface PlayFinished {
+  trackUri: string;
+  listenedMs: number;
+  skipped: boolean;
+}
+
 export interface DiscographyResult {
   playlist: GeneratedPlaylist;
   albums: number;
@@ -332,4 +383,6 @@ export const api = {
   saveTextFile: (fileName: string, content: string) =>
     invoke<string | null>("save_text_file", { fileName, content }),
   importSearch: (lines: string[]) => invoke<ImportMatch[]>("import_search", { lines }),
+
+  getStats: (rangeDays: number | null) => invoke<StatsSummary>("get_stats", { rangeDays }),
 };

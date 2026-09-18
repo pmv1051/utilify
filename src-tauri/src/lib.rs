@@ -31,6 +31,7 @@ pub fn run() {
             let db = Db::open(&db_path)?;
             let spotify = SpotifyClient::new(db.clone());
             app.manage(AppState::new(db, spotify, db_path));
+            features::stats::close_stale(app.state::<AppState>().inner());
 
             tray::setup(app.handle())?;
             polling::start(app.handle().clone());
@@ -79,6 +80,7 @@ pub fn run() {
             commands::export_playlist,
             commands::save_text_file,
             commands::import_search,
+            commands::get_stats,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");
