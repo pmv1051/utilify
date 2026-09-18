@@ -3,6 +3,7 @@ pub mod diff;
 pub mod discography;
 pub mod duplicates;
 pub mod editor;
+pub mod export_import;
 pub mod generated;
 pub mod matching;
 pub mod merge;

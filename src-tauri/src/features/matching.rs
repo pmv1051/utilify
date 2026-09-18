@@ -59,7 +59,6 @@ pub fn name_key(title: &str, artists: &str) -> String {
 }
 
 /// Levenshtein-based similarity in 0..=1 (1 = identical) on normalized text.
-#[allow(dead_code)] // used by the Import tool
 pub fn similarity(a: &str, b: &str) -> f64 {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();

@@ -16,6 +16,7 @@ use crate::state::AppState;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_log::Builder::new()
                 .level(log::LevelFilter::Info)
@@ -75,6 +76,9 @@ pub fn run() {
             commands::create_discography,
             commands::load_playlist_for_editor,
             commands::apply_playlist_order,
+            commands::export_playlist,
+            commands::save_text_file,
+            commands::import_search,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

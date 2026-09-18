@@ -11,6 +11,7 @@ import { DiffPage } from "./pages/DiffPage";
 import { MergePage } from "./pages/MergePage";
 import { DiscographyPage } from "./pages/DiscographyPage";
 import { EditorPage } from "./pages/EditorPage";
+import { ExportImportPage } from "./pages/ExportImportPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { NowPlaying } from "./components/NowPlaying";
@@ -81,9 +82,7 @@ export default function App() {
           {page === "merge" && <MergePage />}
           {page === "discography" && <DiscographyPage />}
           {page === "editor" && <EditorPage />}
-          {page === "exportimport" && (
-            <div className="p-6 text-sm text-muted">This tool is coming next in Phase 3.</div>
-          )}
+          {page === "exportimport" && <ExportImportPage />}
           {page === "settings" && <SettingsPage />}
         </main>
         <NowPlaying />

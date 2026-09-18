@@ -15,6 +15,7 @@ use crate::features::diff::{self, DiffResult};
 use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
 use crate::features::editor::{self, ApplyResult, EditorTrack};
+use crate::features::export_import::{self, ExportContent, ImportMatch};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
@@ -318,6 +319,23 @@ pub async fn apply_playlist_order(
     order: Vec<usize>,
 ) -> Result<ApplyResult> {
     editor::apply_order(&app, &state, &playlist_id, &order).await
+}
+
+// ---- tools: export / import ------------------------------------------------
+
+#[tauri::command]
+pub async fn export_playlist(state: State<'_, AppState>, playlist_id: String, format: String) -> Result<ExportContent> {
+    export_import::export(&state, &playlist_id, &format).await
+}
+
+#[tauri::command]
+pub async fn save_text_file(app: AppHandle, file_name: String, content: String) -> Result<Option<String>> {
+    export_import::save_text_file(&app, &file_name, &content).await
+}
+
+#[tauri::command]
+pub async fn import_search(app: AppHandle, state: State<'_, AppState>, lines: Vec<String>) -> Result<Vec<ImportMatch>> {
+    export_import::import_search(&app, &state, &lines).await
 }
 
 // ---- tools: discography ----------------------------------------------------

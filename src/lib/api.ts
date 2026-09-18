@@ -205,6 +205,35 @@ export interface ApplyResult {
   moves: number;
 }
 
+export interface ExportContent {
+  fileName: string;
+  content: string;
+  tracks: number;
+}
+
+export interface ImportCandidate {
+  uri: string;
+  name: string;
+  artists: string;
+  album: string | null;
+  durationMs: number | null;
+  score: number;
+}
+
+export interface ImportMatch {
+  line: string;
+  queryArtist: string | null;
+  queryTitle: string;
+  candidates: ImportCandidate[];
+  best: number | null;
+  status: "exact" | "fuzzy" | "unsure" | "none";
+}
+
+export interface ImportProgress {
+  done: number;
+  total: number;
+}
+
 export interface DiscographyResult {
   playlist: GeneratedPlaylist;
   albums: number;
@@ -301,4 +330,10 @@ export const api = {
   loadPlaylistForEditor: (playlistId: string) => invoke<EditorTrack[]>("load_playlist_for_editor", { playlistId }),
   applyPlaylistOrder: (playlistId: string, order: number[]) =>
     invoke<ApplyResult>("apply_playlist_order", { playlistId, order }),
+
+  exportPlaylist: (playlistId: string, format: "csv" | "txt") =>
+    invoke<ExportContent>("export_playlist", { playlistId, format }),
+  saveTextFile: (fileName: string, content: string) =>
+    invoke<string | null>("save_text_file", { fileName, content }),
+  importSearch: (lines: string[]) => invoke<ImportMatch[]>("import_search", { lines }),
 };
