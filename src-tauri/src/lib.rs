@@ -36,6 +36,7 @@ pub fn run() {
 
             tray::setup(app.handle())?;
             polling::start(app.handle().clone());
+            features::updater::start_periodic(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -86,6 +87,7 @@ pub fn run() {
             commands::get_connectivity,
             commands::check_for_update,
             commands::install_update,
+            commands::set_update_check_enabled,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

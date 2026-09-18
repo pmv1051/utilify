@@ -23,6 +23,7 @@ export interface Settings {
   userId: string | null;
   dbPath: string;
   appVersion: string;
+  updateCheckEnabled: boolean;
 }
 
 export interface Connectivity {
@@ -361,5 +362,6 @@ export const api = {
   getConnectivity: () => invoke<Connectivity>("get_connectivity"),
   checkForUpdate: () => invoke<UpdateInfo | null>("check_for_update"),
   installUpdate: () => invoke<void>("install_update"),
+  setUpdateCheckEnabled: (enabled: boolean) => invoke<void>("set_update_check_enabled", { enabled }),
 
 };

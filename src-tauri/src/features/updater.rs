@@ -1,13 +1,60 @@
-//! Auto-update via Tauri's updater plugin. Releases publish `latest.json`
-//! (signed with the key whose public half is in `tauri.conf.json`); the app
-//! checks it on startup and on demand, then downloads, installs and restarts.
+//! Updates via Tauri's updater plugin. Releases publish `latest.json` (signed
+//! with the key whose public half is in `tauri.conf.json`).
+//!
+//! Nothing is ever installed automatically. Checking is opt-in: when the
+//! user enables it in Settings, a background task checks shortly after
+//! launch and then every few hours and raises an `update-available` event;
+//! installing is always a button press.
+
+use std::time::Duration;
 
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::UpdaterExt;
 
+use crate::db::config;
 use crate::error::{AppError, Result};
 use crate::state::AppState;
+
+const FIRST_CHECK_DELAY: Duration = Duration::from_secs(30);
+const CHECK_INTERVAL: Duration = Duration::from_secs(6 * 3600);
+
+pub fn check_enabled(state: &AppState) -> bool {
+    state
+        .db
+        .with(|c| config::get(c, config::UPDATE_CHECK_ENABLED))
+        .ok()
+        .flatten()
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
+pub fn set_check_enabled(state: &AppState, enabled: bool) -> Result<()> {
+    state
+        .db
+        .with(|c| config::set(c, config::UPDATE_CHECK_ENABLED, if enabled { "1" } else { "0" }))
+}
+
+/// Background task: periodic checks while the opt-in setting is on. Only
+/// notifies; never installs.
+pub fn start_periodic(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(FIRST_CHECK_DELAY).await;
+        loop {
+            let state = app.state::<AppState>();
+            if check_enabled(&state) {
+                match check(&app, &state).await {
+                    Ok(Some(info)) => {
+                        let _ = app.emit("update-available", &info);
+                    }
+                    Ok(None) => log::debug!("updater: up to date"),
+                    Err(e) => log::debug!("updater: periodic check failed: {e}"),
+                }
+            }
+            tokio::time::sleep(CHECK_INTERVAL).await;
+        }
+    });
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

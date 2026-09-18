@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useApp } from "./stores/app";
-import { api, type BenchRow, type Connectivity, type PlaybackState, type QuotaStatus, type RandomizerSession } from "./lib/api";
+import type { BenchRow, Connectivity, PlaybackState, QuotaStatus, RandomizerSession, UpdateInfo } from "./lib/api";
 import { SetupPage } from "./pages/SetupPage";
 import { PlaylistsPage } from "./pages/PlaylistsPage";
 import { RandomizerPage } from "./pages/RandomizerPage";
@@ -33,18 +33,7 @@ export default function App() {
   const toast = useApp((s) => s.toast);
 
   useEffect(() => {
-    init().then(() => {
-      // One quiet update check per launch; failures (no release yet, offline) are ignored.
-      api
-        .checkForUpdate()
-        .then((u) => {
-          if (u) {
-            setAvailableUpdate(u);
-            toast("info", `Utilify ${u.version} is available. Install it from Settings → Updates.`);
-          }
-        })
-        .catch(() => {});
-    });
+    init();
     const unlisteners = [
       listen<PlaybackState | null>("playback-state", (e) => setPlayback(e.payload)),
       listen<RandomizerSession>("randomizer-reshuffled", (e) => {
@@ -57,6 +46,11 @@ export default function App() {
         toast("info", `"${e.payload.trackName ?? e.payload.trackUri}" is back in "${e.payload.playlistName ?? "its playlist"}".`);
       }),
       listen<string>("bench-error", (e) => toast("error", e.payload)),
+      // Raised by the opt-in periodic check; nothing is installed without a click.
+      listen<UpdateInfo>("update-available", (e) => {
+        setAvailableUpdate(e.payload);
+        toast("info", `Utilify ${e.payload.version} is available. Install it from Settings → Updates when you like.`);
+      }),
       listen<Connectivity>("connectivity", (e) => {
         setOfflineSince(e.payload.online ? null : e.payload.since);
         if (e.payload.online) toast("success", "Spotify is reachable again.");

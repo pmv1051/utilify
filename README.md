@@ -1,6 +1,6 @@
 # Utilify
 
-Desktop utilities for Spotify playlists: the things Spotify's own apps don't do.
+Desktop utilities for Spotify playlists.
 
 - **Randomizer** — a true Fisher-Yates shuffle, written into a shadow playlist (`Name-Utilify`) and played with Spotify shuffle off. Re-shuffles itself when you reach the end, picking up anything added to the source.
 - **Bench** — take a song out of a playlist for an hour, a day, a month, or any time you choose. It comes back by itself, even if the app was closed.
@@ -12,7 +12,7 @@ Desktop utilities for Spotify playlists: the things Spotify's own apps don't do.
 - **Export / Import** — CSV or `Artist — Track` text out; paste a list in and match it back to Spotify with fuzzy matching you can correct.
 - **Now Playing bar** — resizable; transport controls, seek, bench the playing track, re-shuffle the playing playlist.
 
-Utilify runs entirely on your computer. There is no server, no account, and nothing is sent anywhere except Spotify's API.
+Utilify runs entirely on your computer. Nothing is sent anywhere except Spotify's API.
 
 ## Requirements
 
@@ -33,7 +33,7 @@ Download the installer for your platform from the [Releases page](https://github
 
 The installers are not code-signed with a paid certificate, so Windows SmartScreen and macOS Gatekeeper will warn on first launch. On Windows choose "More info → Run anyway"; on macOS right-click the app and choose "Open".
 
-Utilify checks GitHub Releases for updates once per launch and installs them from **Settings → Updates**.
+Updates are never installed automatically. **Settings → Updates** has a manual "Check for updates" button and an opt-in switch (off by default) that lets Utilify check GitHub Releases every 6 hours and notify you; installing is always your click.
 
 ## First launch
 

@@ -51,6 +51,8 @@ pub struct Settings {
     pub user_id: Option<String>,
     pub db_path: String,
     pub app_version: String,
+    /// Opt-in periodic update checks (never auto-install).
+    pub update_check_enabled: bool,
 }
 
 fn setup_state(state: &AppState) -> Result<SetupState> {
@@ -171,6 +173,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
         user_id: uid,
         db_path: state.db_path.display().to_string(),
         app_version: updater::current_version().to_string(),
+        update_check_enabled: updater::check_enabled(&state),
     })
 }
 
@@ -362,6 +365,11 @@ pub async fn check_for_update(app: AppHandle, state: State<'_, AppState>) -> Res
 #[tauri::command]
 pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Result<()> {
     updater::install(&app, &state).await
+}
+
+#[tauri::command]
+pub fn set_update_check_enabled(state: State<'_, AppState>, enabled: bool) -> Result<()> {
+    updater::set_check_enabled(&state, enabled)
 }
 
 // ---- quota ----------------------------------------------------------------

@@ -144,6 +144,28 @@ export function SettingsPage() {
 
         <Section title="Updates">
           <Row label="Version" value={settings.appVersion} mono />
+          <label className="mt-2 flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={settings.updateCheckEnabled}
+              onChange={async (e) => {
+                try {
+                  await api.setUpdateCheckEnabled(e.target.checked);
+                  await refreshSettings();
+                } catch (err) {
+                  toast("error", errorMessage(err));
+                }
+              }}
+            />
+            <span>
+              <span className="block text-sm">Check for updates automatically</span>
+              <span className="block text-xs text-muted">
+                Off by default. When on, Utilify asks GitHub Releases every 6 hours and only tells you; nothing is
+                installed until you click "Install and restart" here.
+              </span>
+            </span>
+          </label>
           {availableUpdate ? (
             <div className="mt-2 text-sm">
               <div className="text-spotify">Utilify {availableUpdate.version} is available.</div>
@@ -171,7 +193,7 @@ export function SettingsPage() {
                 {checking ? <Spinner /> : "Check for updates"}
               </Button>
               <span className="text-xs text-muted">
-                {checkedOnce ? "Up to date." : "Utilify checks once at launch. Updates come from GitHub Releases."}
+                {checkedOnce ? "Up to date." : "Manual check. Updates come from GitHub Releases."}
               </span>
             </div>
           )}

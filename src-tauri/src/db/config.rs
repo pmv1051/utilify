@@ -8,6 +8,8 @@ pub const USER_ID: &str = "user_id";
 pub const USER_DISPLAY_NAME: &str = "user_display_name";
 pub const USER_PRODUCT: &str = "user_product";
 pub const MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
+/// "1" when the user opted in to periodic update checks (never auto-installs).
+pub const UPDATE_CHECK_ENABLED: &str = "update_check_enabled";
 /// Unix time until which artist-family API calls are paused after QUOTA_EXCEEDED.
 pub const QUOTA_COOLDOWN_UNTIL: &str = "quota_cooldown_until";
 
