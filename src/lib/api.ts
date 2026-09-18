@@ -191,16 +191,6 @@ export interface AlbumInfo {
   artists: string;
 }
 
-export interface EditorTrack extends TrackRow {
-  liked: boolean | null;
-}
-
-export interface EditorLoad {
-  tracks: EditorTrack[];
-  likedAvailable: boolean;
-  likedError: string | null;
-}
-
 export interface EditorProgress {
   playlistId: string;
   done: number;
@@ -333,7 +323,7 @@ export const api = {
     randomize: boolean;
   }) => invoke<DiscographyResult>("create_discography", args),
 
-  loadPlaylistForEditor: (playlistId: string) => invoke<EditorLoad>("load_playlist_for_editor", { playlistId }),
+  loadPlaylistForEditor: (playlistId: string) => invoke<TrackRow[]>("load_playlist_for_editor", { playlistId }),
   applyPlaylistOrder: (playlistId: string, order: number[]) =>
     invoke<ApplyResult>("apply_playlist_order", { playlistId, order }),
 

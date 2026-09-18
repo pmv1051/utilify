@@ -14,7 +14,7 @@ use crate::error::{AppError, Result};
 use crate::features::diff::{self, DiffResult};
 use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
-use crate::features::editor::{self, ApplyResult, EditorLoad};
+use crate::features::editor::{self, ApplyResult};
 use crate::features::export_import::{self, ExportContent, ImportMatch};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
@@ -306,7 +306,7 @@ pub async fn diff_playlists(
 // ---- tools: editor ---------------------------------------------------------
 
 #[tauri::command]
-pub async fn load_playlist_for_editor(state: State<'_, AppState>, playlist_id: String) -> Result<EditorLoad> {
+pub async fn load_playlist_for_editor(state: State<'_, AppState>, playlist_id: String) -> Result<Vec<TrackInfo>> {
     editor::load(&state, &playlist_id).await
 }
 

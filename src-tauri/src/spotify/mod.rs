@@ -1,7 +1,6 @@
 pub mod artists;
 pub mod auth;
 pub mod client;
-pub mod library;
 pub mod models;
 pub mod playback;
 pub mod playlists;

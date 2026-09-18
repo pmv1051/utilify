@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, errorMessage, type EditorProgress, type EditorTrack } from "../lib/api";
+import { api, errorMessage, type EditorProgress, type TrackRow } from "../lib/api";
 import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
 import { Spinner } from "../components/Spinner";
@@ -16,7 +16,7 @@ const SORT_LABEL: Record<SortKey, string> = {
   duration: "Duration",
 };
 
-function sortValue(t: EditorTrack, key: SortKey): string | number {
+function sortValue(t: TrackRow, key: SortKey): string | number {
   switch (key) {
     case "artist":
       return t.artists.toLowerCase();
@@ -36,9 +36,7 @@ export function EditorPage() {
   const refreshPlaylists = useApp((s) => s.refreshPlaylists);
 
   const [playlistId, setPlaylistId] = useState<string | null>(null);
-  const [tracks, setTracks] = useState<EditorTrack[]>([]);
-  const [likedAvailable, setLikedAvailable] = useState(true);
-  const [likedError, setLikedError] = useState<string | null>(null);
+  const [tracks, setTracks] = useState<TrackRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -61,10 +59,7 @@ export function EditorPage() {
     }
     setLoading(true);
     try {
-      const r = await api.loadPlaylistForEditor(id);
-      setTracks(r.tracks);
-      setLikedAvailable(r.likedAvailable);
-      setLikedError(r.likedError);
+      setTracks(await api.loadPlaylistForEditor(id));
     } catch (e) {
       toast("error", errorMessage(e));
     } finally {
@@ -186,11 +181,6 @@ export function EditorPage() {
         <Button variant="secondary" onClick={() => load(playlistId)} disabled={!playlistId || busy}>
           {loading ? <Spinner /> : "↻"} Reload
         </Button>
-        {playlistId && !loading && !likedAvailable && (
-          <span className="text-xs text-amber-400" title={likedError ?? undefined}>
-            Liked status unavailable{likedError ? `: ${likedError}` : ""}
-          </span>
-        )}
       </div>
 
       {playlistId && (
@@ -294,7 +284,7 @@ export function EditorPage() {
           <p className="p-6 text-sm text-muted">Pick a playlist above. Reordering keeps each track's "date added".</p>
         ) : loading ? (
           <div className="flex items-center gap-2 p-6 text-sm text-muted">
-            <Spinner /> Loading tracks and liked status…
+            <Spinner /> Loading tracks…
           </div>
         ) : (
           <table className="w-full border-collapse text-sm">
@@ -302,11 +292,6 @@ export function EditorPage() {
               <tr>
                 <th className="w-8 px-3 py-2"></th>
                 <th className="w-12 px-2 py-2 text-right">#</th>
-                {likedAvailable && (
-                  <th className="w-8 px-2 py-2" title="Liked">
-                    ♥
-                  </th>
-                )}
                 <th className="px-2 py-2">Title</th>
                 <th className="px-2 py-2">Album</th>
                 <th className="w-28 px-2 py-2">Added</th>
@@ -328,15 +313,6 @@ export function EditorPage() {
                       <input type="checkbox" checked={on} readOnly />
                     </td>
                     <td className="px-2 py-1.5 text-right text-xs text-muted">{t.position + 1}</td>
-                    {likedAvailable && (
-                      <td className="px-2 py-1.5">
-                        {t.liked === true ? (
-                          <span className="text-spotify" title="In your Liked Songs">♥</span>
-                        ) : t.liked === false ? (
-                          <span className="text-line">♡</span>
-                        ) : null}
-                      </td>
-                    )}
                     <td className="px-2 py-1.5">
                       <div className="truncate">{t.name}</div>
                       <div className="truncate text-xs text-muted">
@@ -352,7 +328,7 @@ export function EditorPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={likedAvailable ? 7 : 6} className="px-6 py-4 text-muted">
+                  <td colSpan={6} className="px-6 py-4 text-muted">
                     No tracks match.
                   </td>
                 </tr>

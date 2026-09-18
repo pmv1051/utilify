@@ -185,7 +185,7 @@ impl SpotifyClient {
         query: &[(&str, String)],
     ) -> Result<Vec<T>> {
         let mut out = Vec::new();
-        let mut page: Option<Paging<T>> = self.get(path, query).await?;
+        let mut page: Option<Paging<T>> = self.get_first_page(path, query).await?;
         let mut pages = 0usize;
         while let Some(p) = page {
             out.extend(p.items);
@@ -231,6 +231,54 @@ impl SpotifyClient {
     }
 
     /// Typed request: `None` for an empty/204 response, otherwise parsed JSON.
+    /// First page of a listing. The Feb 2026 API caps `limit` differently per
+    /// endpoint (and per app mode) and answers 400 "Invalid limit" above the
+    /// cap, so on that error retry with smaller limits and finally with no
+    /// `limit` at all (Spotify's default). `next` links then carry the
+    /// accepted value.
+    async fn get_first_page<T: DeserializeOwned>(
+        &self,
+        path: &str,
+        query: &[(&str, String)],
+    ) -> Result<Option<Paging<T>>> {
+        let first = self.get(path, query).await;
+        let Some(limit_idx) = query.iter().position(|(k, _)| *k == "limit") else {
+            return first;
+        };
+        let is_limit_error = matches!(
+            &first,
+            Err(AppError::Spotify { status: 400, message }) if message.to_lowercase().contains("limit")
+        );
+        if !is_limit_error {
+            return first;
+        }
+        let current: u32 = query[limit_idx].1.parse().unwrap_or(50);
+        let mut candidates: Vec<Option<u32>> = [20u32, 10, 5]
+            .into_iter()
+            .filter(|l| *l < current)
+            .map(Some)
+            .collect();
+        candidates.push(None);
+        for cand in candidates {
+            let mut q: Vec<(&str, String)> = query.to_vec();
+            match cand {
+                Some(l) => q[limit_idx].1 = l.to_string(),
+                None => {
+                    q.remove(limit_idx);
+                }
+            }
+            log::info!(
+                "{path}: limit {current} rejected; retrying with {}",
+                cand.map(|l| l.to_string()).unwrap_or_else(|| "Spotify's default".into())
+            );
+            match self.get(path, &q).await {
+                Err(AppError::Spotify { status: 400, message }) if message.to_lowercase().contains("limit") => continue,
+                other => return other,
+            }
+        }
+        first
+    }
+
     async fn request<T: DeserializeOwned>(
         &self,
         method: Method,
@@ -303,8 +351,16 @@ impl SpotifyClient {
                 .unwrap_or_else(|| text.chars().take(200).collect());
             let reason = envelope.as_ref().and_then(|e| e.error.reason.clone());
             if status != StatusCode::UNAUTHORIZED {
+                let qs = if query.is_empty() {
+                    String::new()
+                } else {
+                    format!(
+                        "?{}",
+                        query.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&")
+                    )
+                };
                 log::warn!(
-                    "{method} {url} -> {status}: {message}{}",
+                    "{method} {url}{qs} -> {status}: {message}{}",
                     reason.as_deref().map(|r| format!(" (reason {r})")).unwrap_or_default()
                 );
             }

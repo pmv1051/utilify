@@ -12,28 +12,10 @@ use tauri::{AppHandle, Emitter};
 
 use crate::error::{AppError, Result};
 use crate::features::tracks::{fetch_playlist, TrackInfo};
-use crate::spotify::{library, playlists};
+use crate::spotify::playlists;
 use crate::state::AppState;
 
 const MOVE_DELAY: Duration = Duration::from_millis(120);
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EditorTrack {
-    #[serde(flatten)]
-    pub track: TrackInfo,
-    /// Saved in the user's library ("liked"). `None` for local files.
-    pub liked: Option<bool>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EditorLoad {
-    pub tracks: Vec<EditorTrack>,
-    /// False when the liked check failed; `liked` is then `None` everywhere.
-    pub liked_available: bool,
-    pub liked_error: Option<String>,
-}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,46 +31,9 @@ pub struct ApplyResult {
     pub moves: usize,
 }
 
-/// All items of a playlist with true positions and liked flags. The liked
-/// lookup is best-effort: if Spotify refuses it (scope or dev-mode limits),
-/// the playlist still loads without hearts.
-pub async fn load(state: &AppState, playlist_id: &str) -> Result<EditorLoad> {
-    let tracks = fetch_playlist(state, playlist_id).await?;
-    let ids: Vec<String> = tracks
-        .iter()
-        .filter(|t| t.playable)
-        .filter_map(|t| t.id.clone())
-        .collect();
-
-    let (flags, liked_error) = if ids.is_empty() {
-        (Some(Vec::new()), None)
-    } else {
-        match library::contains_saved_tracks(&state.spotify, &ids).await {
-            Ok(f) => (Some(f), None),
-            Err(e) => {
-                log::warn!("editor: liked lookup failed, continuing without hearts: {e}");
-                (None, Some(e.to_string()))
-            }
-        }
-    };
-    let liked_available = flags.is_some();
-    let mut flag_iter = flags.unwrap_or_default().into_iter();
-    let tracks = tracks
-        .into_iter()
-        .map(|t| {
-            let liked = if liked_available && t.playable && t.id.is_some() {
-                flag_iter.next()
-            } else {
-                None
-            };
-            EditorTrack { track: t, liked }
-        })
-        .collect();
-    Ok(EditorLoad {
-        tracks,
-        liked_available,
-        liked_error,
-    })
+/// All items of a playlist (local files included, so positions are exact).
+pub async fn load(state: &AppState, playlist_id: &str) -> Result<Vec<TrackInfo>> {
+    fetch_playlist(state, playlist_id).await
 }
 
 /// One Spotify reorder call.
