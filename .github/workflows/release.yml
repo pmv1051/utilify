@@ -19,9 +19,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest # Apple Silicon
+          # Both macOS builds run on the Apple Silicon runner; the Intel one
+          # is a cross-compile (GitHub retired the macos-13 Intel runners).
+          - platform: macos-latest
             args: --target aarch64-apple-darwin
-          - platform: macos-13 # Intel
+          - platform: macos-latest
             args: --target x86_64-apple-darwin
           - platform: ubuntu-22.04
             args: ""
