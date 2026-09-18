@@ -248,7 +248,19 @@ pub async fn add_seed_playlist(
         .ok_or_else(|| AppError::other("Paste a Spotify playlist link, URI, or id."))?;
     let meta = playlists::get_playlist(&state.spotify, &id).await?;
     progress(app, "seed", 0, 1, &meta.name);
-    let tracks = fetch_playlist(state, &id).await?;
+    // Dev-mode apps get 403 on the tracks of playlists the user neither owns
+    // nor follows (live 2026-09-18), even when the playlist is public.
+    let tracks = match fetch_playlist(state, &id).await {
+        Ok(t) => t,
+        Err(AppError::Spotify { status: 403, .. }) => {
+            return Err(AppError::other(format!(
+                "Spotify refuses to read the tracks of \"{}\" (403). In development mode the API only opens \
+                 playlists you own or follow. Follow it in Spotify, refresh Playlists, then add it here.",
+                meta.name
+            )));
+        }
+        Err(e) => return Err(e),
+    };
 
     let rows: Vec<PoolTrack<'_>> = if include_tracks {
         tracks

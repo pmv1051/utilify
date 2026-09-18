@@ -11,7 +11,7 @@ import {
 import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
 import { Spinner } from "../components/Spinner";
-import { PageHeader } from "../components/PlaylistPicker";
+import { PageHeader, PlaylistSelect } from "../components/PlaylistPicker";
 import { formatRelative } from "../lib/format";
 
 const KIND_LABEL: Record<string, string> = {
@@ -340,18 +340,29 @@ export function DiscoveryPage() {
 
             <div className="rounded-md border border-line p-3">
               <div className="mb-2 text-sm font-medium">Seed playlist</div>
+              <PlaylistSelect
+                value={null}
+                onChange={(id) => id && setSeedRef(id)}
+                placeholder="Pick one from your library…"
+                disabled={busy !== null}
+                className="mb-2 w-full min-w-0"
+              />
               <div className="flex gap-2">
                 <input
                   value={seedRef}
                   onChange={(e) => setSeedRef(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && addSeedPlaylist()}
-                  placeholder="Playlist link, URI or id"
+                  placeholder="or paste a link, URI or id"
                   className="min-w-0 flex-1 rounded-md border border-line bg-ink px-2 py-1 text-sm outline-none focus:border-spotify"
                 />
                 <Button variant="secondary" onClick={addSeedPlaylist} disabled={busy !== null || !seedRef.trim()}>
                   {busy === "seed-playlist" ? <Spinner /> : "Add"}
                 </Button>
               </div>
+              <p className="mt-1 text-xs text-amber-400/80">
+                Spotify's development mode only lets the app read playlists you own or follow. To seed from someone
+                else's playlist, follow it in Spotify first and refresh Playlists.
+              </p>
               <div className="mt-2 space-y-1 text-xs text-zinc-300">
                 <label className="flex items-center gap-2">
                   <input type="checkbox" checked={seedExpand} onChange={(e) => setSeedExpand(e.target.checked)} />
