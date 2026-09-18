@@ -64,13 +64,20 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: "Utilify ${{ github.ref_name }}"
           releaseBody: |
-            Download the installer for your platform below.
+            ## Download
 
-            - Windows: `.msi` (or `.exe` setup)
-            - macOS: `.dmg` (Apple Silicon: `aarch64`, Intel: `x64`)
-            - Linux: `.AppImage` or `.deb`
+            | Platform | File |
+            | --- | --- |
+            | Windows | `Utilify_…_x64-setup.exe` |
+            | macOS, Apple Silicon (M1 or newer) | `Utilify_…_aarch64.dmg` |
+            | macOS, Intel | `Utilify_…_x64.dmg` |
+            | Linux | `Utilify_…_amd64.AppImage` (any distro) or `.deb` (Debian/Ubuntu) |
 
-            First launch walks you through creating your own Spotify app (about 2 minutes). Spotify Premium is required for playback control.
+            Ignore the rest: `.sig`, `.app.tar.gz` and `latest.json` belong to the in-app updater, and "Source code" is added by GitHub.
+
+            The installers are not signed with a paid certificate, so Windows SmartScreen and macOS Gatekeeper warn on first launch (Windows: More info → Run anyway; macOS: right-click → Open).
+
+            First launch walks you through creating your own free Spotify app (about 2 minutes). Spotify Premium is required.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}

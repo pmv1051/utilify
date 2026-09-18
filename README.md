@@ -26,10 +26,12 @@ Download the installer for your platform from the [Releases page](https://github
 
 | Platform | File |
 | --- | --- |
-| Windows | `Utilify_x.y.z_x64-setup.exe` or `Utilify_x.y.z_x64_en-US.msi` |
-| macOS (Apple Silicon) | `Utilify_x.y.z_aarch64.dmg` |
+| Windows | `Utilify_x.y.z_x64-setup.exe` |
+| macOS (Apple Silicon, M1 or newer) | `Utilify_x.y.z_aarch64.dmg` |
 | macOS (Intel) | `Utilify_x.y.z_x64.dmg` |
-| Linux | `Utilify_x.y.z_amd64.AppImage` or `.deb` |
+| Linux | `Utilify_x.y.z_amd64.AppImage` (any distro) or `.deb` (Debian/Ubuntu) |
+
+Ignore the other files on the release page: the `.sig`, `.app.tar.gz` and `latest.json` entries are used by the in-app updater, and "Source code" is added by GitHub automatically.
 
 The installers are not code-signed with a paid certificate, so Windows SmartScreen and macOS Gatekeeper will warn on first launch. On Windows choose "More info → Run anyway"; on macOS right-click the app and choose "Open".
 
