@@ -82,10 +82,14 @@ pub async fn check(app: &AppHandle, state: &AppState) -> Result<Option<UpdateInf
     let updater = app
         .updater()
         .map_err(|e| AppError::other(format!("Updater is not available in this build: {e}")))?;
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| AppError::other(format!("Could not check for updates: {e}")))?;
+    let update = updater.check().await.map_err(|e| match e {
+        // The endpoint 404s until the first release (with latest.json) is published.
+        tauri_plugin_updater::Error::ReleaseNotFound => AppError::other(
+            "No published release found on GitHub yet. Updates become available once the first release \
+             (with its latest.json) is published.",
+        ),
+        other => AppError::other(format!("Could not check for updates: {other}")),
+    })?;
 
     let info = update.as_ref().map(|u| UpdateInfo {
         version: u.version.clone(),
