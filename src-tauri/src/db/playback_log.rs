@@ -1,9 +1,10 @@
 //! Playback log: one row per play, filled in progressively by the poller.
+//!
+//! `listened_ms` is the source of truth. The `skipped` flag is derived from it
+//! against the user's play threshold at finish time; the Stats queries derive
+//! it again at read time so a changed threshold re-classifies history.
 
 use rusqlite::{params, Connection};
-
-/// A play is a "skip" when less than this was heard.
-pub const SKIP_THRESHOLD_MS: i64 = 10_000;
 
 pub struct NewPlay<'a> {
     pub track_uri: &'a str,
@@ -46,24 +47,23 @@ pub fn update(conn: &Connection, id: i64, listened_ms: i64, now: i64) -> rusqlit
     Ok(())
 }
 
-pub fn finish(conn: &Connection, id: i64, listened_ms: i64, now: i64) -> rusqlite::Result<()> {
+pub fn finish(conn: &Connection, id: i64, listened_ms: i64, now: i64, threshold_ms: i64) -> rusqlite::Result<()> {
     conn.execute(
         "UPDATE playback_log
          SET listened_ms = ?2, ended_at = ?3, updated_at = ?3, skipped = CASE WHEN ?2 < ?4 THEN 1 ELSE 0 END
          WHERE id = ?1",
-        params![id, listened_ms, now, SKIP_THRESHOLD_MS],
+        params![id, listened_ms, now, threshold_ms],
     )?;
     Ok(())
 }
 
 /// Close rows left open by a quit or crash, using the last poll time.
-pub fn close_stale(conn: &Connection) -> rusqlite::Result<usize> {
+pub fn close_stale(conn: &Connection, threshold_ms: i64) -> rusqlite::Result<usize> {
     conn.execute(
         "UPDATE playback_log
          SET ended_at = COALESCE(updated_at, started_at),
              skipped = CASE WHEN listened_ms < ?1 THEN 1 ELSE 0 END
          WHERE ended_at IS NULL",
-        [SKIP_THRESHOLD_MS],
+        [threshold_ms],
     )
 }
-

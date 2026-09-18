@@ -401,6 +401,11 @@ pub fn get_stats(state: State<'_, AppState>, range_days: Option<u32>) -> Result<
     stats::summary(&state, range_days)
 }
 
+#[tauri::command]
+pub fn set_play_threshold(state: State<'_, AppState>, secs: i64) -> Result<()> {
+    stats::set_play_threshold(&state, secs)
+}
+
 // ---- tools: discography ----------------------------------------------------
 
 #[tauri::command]

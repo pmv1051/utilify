@@ -81,6 +81,7 @@ pub fn run() {
             commands::save_text_file,
             commands::import_search,
             commands::get_stats,
+            commands::set_play_threshold,
             commands::genre_breakdown,
             commands::get_discovery_status,
             commands::rebuild_library_index,

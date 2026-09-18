@@ -50,7 +50,7 @@ export function SettingsPage() {
             <span>
               <span className="block text-sm">Keep running in the system tray when the window is closed</span>
               <span className="block text-xs text-muted">
-                Required for automatic re-shuffles and (later) bench restores while you are not looking at the app.
+                Required for automatic re-shuffles and bench restores.
                 Use Quit in the tray menu to fully exit.
               </span>
             </span>

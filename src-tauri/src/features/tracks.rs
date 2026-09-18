@@ -9,12 +9,20 @@ use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ArtistRef {
+    pub id: Option<String>,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TrackInfo {
     pub uri: String,
     pub id: Option<String>,
     pub name: String,
     pub artists: String,
     pub artist_ids: Vec<String>,
+    pub artist_refs: Vec<ArtistRef>,
     pub album: Option<String>,
     pub duration_ms: Option<u64>,
     pub added_at: Option<String>,
@@ -35,6 +43,14 @@ impl TrackInfo {
             name: t.name.clone(),
             artists: t.artist_names(),
             artist_ids: t.artists.iter().filter_map(|a| a.id.clone()).collect(),
+            artist_refs: t
+                .artists
+                .iter()
+                .map(|a| ArtistRef {
+                    id: a.id.clone(),
+                    name: a.name.clone(),
+                })
+                .collect(),
             album: t.album.as_ref().map(|a| a.name.clone()),
             duration_ms: t.duration_ms,
             added_at: entry.added_at.clone(),

@@ -20,11 +20,15 @@ export function StatsPage() {
   const [days, setDays] = useState<number | null>(30);
   const [stats, setStats] = useState<StatsSummary | null>(null);
   const [loading, setLoading] = useState(false);
+  const [thresholdInput, setThresholdInput] = useState<string>("");
+  const [savingThreshold, setSavingThreshold] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setStats(await api.getStats(days));
+      const s = await api.getStats(days);
+      setStats(s);
+      setThresholdInput((prev) => prev || String(Math.round(s.playThresholdMs / 1000)));
     } catch (e) {
       toast("error", errorMessage(e));
     } finally {
@@ -56,6 +60,24 @@ export function StatsPage() {
     [playlists],
   );
 
+  const currentThreshold = stats ? Math.round(stats.playThresholdMs / 1000) : 10;
+  const thresholdValue = Number(thresholdInput);
+  const thresholdValid = Number.isInteger(thresholdValue) && thresholdValue >= 1 && thresholdValue <= 600;
+
+  async function saveThreshold() {
+    if (!thresholdValid || thresholdValue === currentThreshold) return;
+    setSavingThreshold(true);
+    try {
+      await api.setPlayThreshold(thresholdValue);
+      toast("success", `A play now counts after ${thresholdValue} s. History re-classified.`);
+      await load();
+    } catch (e) {
+      toast("error", errorMessage(e));
+    } finally {
+      setSavingThreshold(false);
+    }
+  }
+
   const skipRate = stats && stats.plays > 0 ? Math.round((stats.skips / stats.plays) * 100) : 0;
   const hourMax = stats ? Math.max(1, ...stats.hours) : 1;
   const dayMax = stats ? Math.max(1, ...stats.days.map((d) => d.listenedMs)) : 1;
@@ -78,6 +100,29 @@ export function StatsPage() {
             {r.label}
           </button>
         ))}
+        <span className="mx-2 h-5 w-px bg-line" />
+        <label className="flex items-center gap-2 text-xs text-zinc-300" title="Anything shorter counts as a skip. Applies to all history.">
+          A play counts after
+          <input
+            type="number"
+            min={1}
+            max={600}
+            value={thresholdInput}
+            onChange={(e) => setThresholdInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && saveThreshold()}
+            className="w-16 rounded-md border border-line bg-ink px-2 py-1 text-xs outline-none focus:border-spotify"
+          />
+          s
+        </label>
+        {thresholdValid && thresholdValue !== currentThreshold && (
+          <button
+            onClick={saveThreshold}
+            disabled={savingThreshold}
+            className="rounded-md bg-spotify px-2.5 py-1 text-xs font-semibold text-black hover:bg-spotify-dark disabled:opacity-50"
+          >
+            {savingThreshold ? "Saving…" : "Apply"}
+          </button>
+        )}
         {stats?.firstLoggedAt && (
           <span className="ml-auto text-xs text-muted">
             Logging since {new Date(stats.firstLoggedAt * 1000).toLocaleDateString()}
@@ -89,7 +134,7 @@ export function StatsPage() {
         {!stats ? null : stats.plays === 0 ? (
           <div className="rounded-lg border border-dashed border-line p-8 text-center text-sm text-muted">
             Nothing logged in this range yet. Plays are recorded while Utilify runs (window open or in the tray) and
-            Spotify is playing. A play counts once 10 seconds are heard; anything shorter is a skip.
+            Spotify is playing. A play counts once {currentThreshold} seconds are heard; anything shorter is a skip.
           </div>
         ) : (
           <>
@@ -180,6 +225,25 @@ export function StatsPage() {
               </div>
             </Section>
           </>
+        )}
+
+        {stats && (
+          <Section title="Spotify data export">
+            <div className="px-4 py-4 text-sm text-muted">
+              <p>
+                Spotify can send you your full streaming history (Account → Privacy settings → Download your data;
+                it takes up to 30 days to arrive). Importing it here will backfill everything above with years of
+                listening instead of only what Utilify has logged.
+              </p>
+              <p className="mt-2 text-xs">Not available yet: this panel is waiting for a real export file to build against.</p>
+              <button
+                disabled
+                className="mt-3 cursor-not-allowed rounded-md border border-line px-3 py-1.5 text-xs text-muted opacity-60"
+              >
+                Import export… (coming soon)
+              </button>
+            </div>
+          </Section>
         )}
       </div>
     </div>

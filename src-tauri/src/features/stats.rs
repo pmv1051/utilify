@@ -10,15 +10,43 @@
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
-use crate::db::playback_log::{self, NewPlay, SKIP_THRESHOLD_MS};
+use crate::db::playback_log::{self, NewPlay};
 use crate::db::stats::StatsSummary;
-use crate::db::{self, now};
-use crate::error::Result;
+use crate::db::{self, config, now};
+use crate::error::{AppError, Result};
 use crate::spotify::models::PlaybackState;
 use crate::state::AppState;
 
 /// Poll interval plus slack: the most we credit for progress we did not watch.
 const MAX_UNWATCHED_CREDIT_MS: i64 = 35_000;
+
+pub const DEFAULT_PLAY_THRESHOLD_SECS: i64 = 10;
+pub const MIN_PLAY_THRESHOLD_SECS: i64 = 1;
+pub const MAX_PLAY_THRESHOLD_SECS: i64 = 600;
+
+/// User-adjustable: how long a track must be heard to count as a play.
+pub fn play_threshold_ms(state: &AppState) -> i64 {
+    state
+        .db
+        .with(|c| config::get(c, config::PLAY_THRESHOLD_SECS))
+        .ok()
+        .flatten()
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(DEFAULT_PLAY_THRESHOLD_SECS)
+        .clamp(MIN_PLAY_THRESHOLD_SECS, MAX_PLAY_THRESHOLD_SECS)
+        * 1000
+}
+
+pub fn set_play_threshold(state: &AppState, secs: i64) -> Result<()> {
+    if !(MIN_PLAY_THRESHOLD_SECS..=MAX_PLAY_THRESHOLD_SECS).contains(&secs) {
+        return Err(AppError::other(format!(
+            "Play threshold must be between {MIN_PLAY_THRESHOLD_SECS} and {MAX_PLAY_THRESHOLD_SECS} seconds."
+        )));
+    }
+    state
+        .db
+        .with(|c| config::set(c, config::PLAY_THRESHOLD_SECS, &secs.to_string()))
+}
 
 #[derive(Debug, Clone)]
 pub struct CurrentPlay {
@@ -106,9 +134,10 @@ fn restarted(play: &CurrentPlay, pb: &PlaybackState) -> bool {
 }
 
 fn finish(app: &AppHandle, state: &AppState, play: &CurrentPlay, now: i64) {
-    let skipped = play.listened_ms < SKIP_THRESHOLD_MS;
+    let threshold = play_threshold_ms(state);
+    let skipped = play.listened_ms < threshold;
     let result = state.db.with(|c| {
-        playback_log::finish(c, play.log_id, play.listened_ms, now)?;
+        playback_log::finish(c, play.log_id, play.listened_ms, now, threshold)?;
         db::discovery::mark_outcome(c, &play.uri, skipped)
     });
     match result {
@@ -133,7 +162,8 @@ fn finish(app: &AppHandle, state: &AppState, play: &CurrentPlay, now: i64) {
 
 /// Close rows left open by a previous run.
 pub fn close_stale(state: &AppState) {
-    match state.db.with(playback_log::close_stale) {
+    let threshold = play_threshold_ms(state);
+    match state.db.with(|c| playback_log::close_stale(c, threshold)) {
         Ok(n) if n > 0 => log::info!("stats: closed {n} play(s) left open by the previous run"),
         Ok(_) => {}
         Err(e) => log::warn!("stats: close_stale failed: {e}"),
@@ -142,5 +172,6 @@ pub fn close_stale(state: &AppState) {
 
 pub fn summary(state: &AppState, range_days: Option<u32>) -> Result<StatsSummary> {
     let since = range_days.map(|d| now() - d as i64 * 86_400);
-    state.db.with(|c| db::stats::summary(c, since))
+    let threshold = play_threshold_ms(state);
+    state.db.with(|c| db::stats::summary(c, since, threshold))
 }

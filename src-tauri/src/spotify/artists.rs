@@ -50,6 +50,11 @@ pub async fn get_artists(c: &SpotifyClient, ids: &[String]) -> Result<Vec<Artist
     Ok(out)
 }
 
+/// `GET /artists/{id}`.
+pub async fn get_artist(c: &SpotifyClient, id: &str) -> Result<Option<ArtistObject>> {
+    c.get(&format!("/artists/{id}"), &[]).await
+}
+
 #[derive(Debug, Deserialize)]
 struct ArtistSearchResponse {
     #[serde(default)]

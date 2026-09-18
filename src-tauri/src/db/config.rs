@@ -8,6 +8,8 @@ pub const USER_ID: &str = "user_id";
 pub const USER_DISPLAY_NAME: &str = "user_display_name";
 pub const USER_PRODUCT: &str = "user_product";
 pub const MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
+/// Seconds a track must be heard before it counts as a play (else a skip).
+pub const PLAY_THRESHOLD_SECS: &str = "play_threshold_secs";
 
 pub fn get(conn: &Connection, key: &str) -> rusqlite::Result<Option<String>> {
     conn.query_row("SELECT value FROM config WHERE key = ?1", [key], |r| r.get(0))

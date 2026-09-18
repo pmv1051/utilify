@@ -44,6 +44,7 @@ pub struct DayStat {
 #[serde(rename_all = "camelCase")]
 pub struct StatsSummary {
     pub since: Option<i64>,
+    pub play_threshold_ms: i64,
     pub plays: i64,
     pub listened_ms: i64,
     pub unique_tracks: i64,
@@ -61,15 +62,16 @@ pub struct StatsSummary {
 
 const TOP_N: i64 = 25;
 
-fn track_stats(conn: &Connection, since: i64, order: &str, min_plays: i64) -> rusqlite::Result<Vec<TrackStat>> {
+fn track_stats(conn: &Connection, since: i64, threshold_ms: i64, order: &str, min_plays: i64) -> rusqlite::Result<Vec<TrackStat>> {
     let sql = format!(
-        "SELECT track_uri, MAX(track_name), MAX(artist_name), COUNT(*), SUM(listened_ms), SUM(skipped)
+        "SELECT track_uri, MAX(track_name), MAX(artist_name), COUNT(*), SUM(listened_ms),
+                SUM(CASE WHEN listened_ms < ?4 THEN 1 ELSE 0 END) AS skips
          FROM playback_log WHERE started_at >= ?1
          GROUP BY track_uri HAVING COUNT(*) >= ?2
          ORDER BY {order} LIMIT ?3"
     );
     let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(params![since, min_plays, TOP_N], |r| {
+    let rows = stmt.query_map(params![since, min_plays, TOP_N, threshold_ms], |r| {
         Ok(TrackStat {
             uri: r.get(0)?,
             name: r.get(1)?,
@@ -82,32 +84,34 @@ fn track_stats(conn: &Connection, since: i64, order: &str, min_plays: i64) -> ru
     rows.collect()
 }
 
-pub fn summary(conn: &Connection, since: Option<i64>) -> rusqlite::Result<StatsSummary> {
+pub fn summary(conn: &Connection, since: Option<i64>, threshold_ms: i64) -> rusqlite::Result<StatsSummary> {
     let s = since.unwrap_or(0);
 
     let (plays, listened_ms, unique_tracks, unique_artists, skips): (i64, i64, i64, i64, i64) = conn.query_row(
         "SELECT COUNT(*), COALESCE(SUM(listened_ms), 0), COUNT(DISTINCT track_uri),
-                COUNT(DISTINCT COALESCE(artist_id, artist_name)), COALESCE(SUM(skipped), 0)
+                COUNT(DISTINCT COALESCE(artist_id, artist_name)),
+                COALESCE(SUM(CASE WHEN listened_ms < ?2 THEN 1 ELSE 0 END), 0)
          FROM playback_log WHERE started_at >= ?1",
-        [s],
+        params![s, threshold_ms],
         |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
     )?;
     let first_logged_at: Option<i64> = conn.query_row("SELECT MIN(started_at) FROM playback_log", [], |r| r.get(0))?;
 
-    let top_tracks = track_stats(conn, s, "SUM(listened_ms) DESC, COUNT(*) DESC", 1)?;
-    let most_skipped = track_stats(conn, s, "SUM(skipped) DESC, COUNT(*) DESC", 2)?
+    let top_tracks = track_stats(conn, s, threshold_ms, "SUM(listened_ms) DESC, COUNT(*) DESC", 1)?;
+    let most_skipped = track_stats(conn, s, threshold_ms, "skips DESC, COUNT(*) DESC", 2)?
         .into_iter()
         .filter(|t| t.skips > 0)
         .collect();
 
     let top_artists = {
         let mut stmt = conn.prepare(
-            "SELECT COALESCE(artist_name, '?'), MAX(artist_id), COUNT(*), SUM(listened_ms), SUM(skipped)
+            "SELECT COALESCE(artist_name, '?'), MAX(artist_id), COUNT(*), SUM(listened_ms),
+                    SUM(CASE WHEN listened_ms < ?3 THEN 1 ELSE 0 END)
              FROM playback_log WHERE started_at >= ?1
              GROUP BY COALESCE(artist_id, artist_name)
              ORDER BY SUM(listened_ms) DESC LIMIT ?2",
         )?;
-        let rows = stmt.query_map(params![s, TOP_N], |r| {
+        let rows = stmt.query_map(params![s, TOP_N, threshold_ms], |r| {
             Ok(ArtistStat {
                 artist: r.get(0)?,
                 artist_id: r.get(1)?,
@@ -169,6 +173,7 @@ pub fn summary(conn: &Connection, since: Option<i64>) -> rusqlite::Result<StatsS
 
     Ok(StatsSummary {
         since,
+        play_threshold_ms: threshold_ms,
         plays,
         listened_ms,
         unique_tracks,
@@ -213,7 +218,7 @@ mod tests {
         )
         .unwrap();
         if finish {
-            playback_log::finish(conn, id, listened, started + listened / 1000).unwrap();
+            playback_log::finish(conn, id, listened, started + listened / 1000, 10_000).unwrap();
         } else {
             playback_log::update(conn, id, listened, started + 30).unwrap();
         }
@@ -231,10 +236,10 @@ mod tests {
 
 
         // Open row gets closed at "launch" and classified.
-        assert_eq!(playback_log::close_stale(&conn).unwrap(), 1);
-        assert_eq!(playback_log::close_stale(&conn).unwrap(), 0);
+        assert_eq!(playback_log::close_stale(&conn, 10_000).unwrap(), 1);
+        assert_eq!(playback_log::close_stale(&conn, 10_000).unwrap(), 0);
 
-        let s = summary(&conn, None).unwrap();
+        let s = summary(&conn, None, 10_000).unwrap();
         assert_eq!(s.plays, 4);
         assert_eq!(s.skips, 1);
         assert_eq!(s.unique_tracks, 3);
@@ -247,8 +252,12 @@ mod tests {
         assert_eq!(s.most_skipped.len(), 1);
 
         // Range filter excludes older plays.
-        let recent = summary(&conn, Some(t0 + 1000)).unwrap();
+        let recent = summary(&conn, Some(t0 + 1000), 10_000).unwrap();
         assert_eq!(recent.plays, 1);
+
+        // A higher threshold re-classifies history at read time.
+        let strict = summary(&conn, None, 50_000).unwrap();
+        assert_eq!(strict.skips, 2);
     }
 
     #[test]

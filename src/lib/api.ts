@@ -97,6 +97,7 @@ export interface TrackRow {
   name: string;
   artists: string;
   artistIds: string[];
+  artistRefs: { id: string | null; name: string }[];
   album: string | null;
   durationMs: number | null;
   addedAt: string | null;
@@ -261,6 +262,7 @@ export interface DayStat {
 
 export interface StatsSummary {
   since: number | null;
+  playThresholdMs: number;
   plays: number;
   listenedMs: number;
   uniqueTracks: number;
@@ -292,6 +294,7 @@ export interface GenreBreakdown {
   untagged: number;
   artistsTotal: number;
   artistsFetched: number;
+  lookupStrategy: "batch" | "single" | "search" | string;
 }
 
 export interface GenreProgress {
@@ -463,6 +466,7 @@ export const api = {
   importSearch: (lines: string[]) => invoke<ImportMatch[]>("import_search", { lines }),
 
   getStats: (rangeDays: number | null) => invoke<StatsSummary>("get_stats", { rangeDays }),
+  setPlayThreshold: (secs: number) => invoke<void>("set_play_threshold", { secs }),
   genreBreakdown: (playlistId: string) => invoke<GenreBreakdown>("genre_breakdown", { playlistId }),
 
   getDiscoveryStatus: () => invoke<DiscoveryStatus>("get_discovery_status"),
