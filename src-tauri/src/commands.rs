@@ -346,8 +346,13 @@ pub async fn import_search(app: AppHandle, state: State<'_, AppState>, lines: Ve
 // ---- tools: genre ----------------------------------------------------------
 
 #[tauri::command]
-pub async fn genre_breakdown(app: AppHandle, state: State<'_, AppState>, playlist_id: String) -> Result<GenreBreakdown> {
-    genre::breakdown(&app, &state, &playlist_id).await
+pub async fn genre_breakdown(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    playlist_id: String,
+    force: bool,
+) -> Result<GenreBreakdown> {
+    genre::breakdown(&app, &state, &playlist_id, force).await
 }
 
 // ---- discovery -------------------------------------------------------------

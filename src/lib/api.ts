@@ -294,7 +294,8 @@ export interface GenreBreakdown {
   untagged: number;
   artistsTotal: number;
   artistsFetched: number;
-  lookupStrategy: "batch" | "single" | "search" | string;
+  lookupStrategy: "single" | "search" | string;
+  noTagsFromSpotify: boolean;
 }
 
 export interface GenreProgress {
@@ -467,7 +468,8 @@ export const api = {
 
   getStats: (rangeDays: number | null) => invoke<StatsSummary>("get_stats", { rangeDays }),
   setPlayThreshold: (secs: number) => invoke<void>("set_play_threshold", { secs }),
-  genreBreakdown: (playlistId: string) => invoke<GenreBreakdown>("genre_breakdown", { playlistId }),
+  genreBreakdown: (playlistId: string, force: boolean) =>
+    invoke<GenreBreakdown>("genre_breakdown", { playlistId, force }),
 
   getDiscoveryStatus: () => invoke<DiscoveryStatus>("get_discovery_status"),
   rebuildLibraryIndex: () => invoke<LibraryIndexInfo>("rebuild_library_index"),

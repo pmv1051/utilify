@@ -2,13 +2,15 @@
 //! a playlist. A track carries the union of its credited artists' genres.
 //! Genre tags are cached per artist for 30 days.
 //!
-//! Development Mode forbids `GET /artists?ids=` (403, live 2026-09-18), so
-//! lookups fall back to `GET /artists/{id}` and, if that is forbidden too, to
-//! `GET /search?type=artist` by name (search is proven to work and returns
-//! genres). The first strategy that works is remembered for the session.
+//! Development Mode forbids `GET /artists?ids=` (403), so artists are looked
+//! up one by one with `GET /artists/{id}`. Live runs also showed that endpoint
+//! returning empty `genres` for every artist; Spotify has been stripping genre
+//! data from the API. If a whole batch comes back untagged, a few artists are
+//! probed through `GET /search?type=artist`, and if search still carries tags
+//! the lookup switches to search for the session.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Serialize;
@@ -16,16 +18,17 @@ use tauri::{AppHandle, Emitter};
 
 use crate::db::genres::{self, ArtistGenres};
 use crate::db::now;
-use crate::error::{AppError, Result};
+use crate::error::Result;
 use crate::features::tracks::{fetch_playlist, playlist_display_name, TrackInfo};
 use crate::spotify::artists::{self, ArtistObject};
 use crate::state::AppState;
 
 const GENRE_CACHE_SECS: i64 = 30 * 24 * 3600;
 const THROTTLE: Duration = Duration::from_millis(120);
+const PROBE_COUNT: usize = 3;
 
-/// 0 = try batch, 1 = single lookups, 2 = search by name.
-static STRATEGY: AtomicU8 = AtomicU8::new(0);
+/// Set once search proved to carry genres while single lookups did not.
+static USE_SEARCH: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -52,8 +55,10 @@ pub struct GenreBreakdown {
     pub untagged: usize,
     pub artists_total: usize,
     pub artists_fetched: usize,
-    /// Which lookup worked: `batch`, `single` or `search`.
+    /// `single` or `search`.
     pub lookup_strategy: String,
+    /// True when Spotify returned no tags for any artist fetched this run.
+    pub no_tags_from_spotify: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -63,92 +68,96 @@ pub struct GenreProgress {
     pub total: usize,
 }
 
-fn is_forbidden(e: &AppError) -> bool {
-    matches!(e, AppError::Spotify { status: 403, .. })
+async fn lookup_single(state: &AppState, id: &str) -> Result<Option<ArtistObject>> {
+    artists::get_artist(&state.spotify, id).await
 }
 
-/// Fetch artist objects for `ids`, escalating strategies on 403.
-async fn fetch_artists(
+async fn lookup_search(state: &AppState, id: &str, name: &str) -> Result<Option<ArtistObject>> {
+    let hits = artists::search_artists(&state.spotify, name).await?;
+    let lower = name.to_lowercase();
+    Ok(hits
+        .iter()
+        .find(|a| a.id == id)
+        .or_else(|| hits.iter().find(|a| a.name.to_lowercase() == lower))
+        .cloned())
+}
+
+/// Fetch artists one by one with the current strategy, reporting progress.
+async fn fetch_all(
     app: &AppHandle,
     state: &AppState,
     ids: &[String],
     names: &HashMap<String, String>,
-    done_so_far: usize,
-    total: usize,
+    use_search: bool,
 ) -> Result<Vec<ArtistObject>> {
-    let c = &state.spotify;
-    let mut strategy = STRATEGY.load(Ordering::Relaxed);
-
-    if strategy == 0 {
-        match artists::get_artists(c, ids).await {
-            Ok(list) => return Ok(list),
-            Err(e) if is_forbidden(&e) => {
-                log::warn!("genre: batch artist lookup forbidden; falling back to single lookups");
-                strategy = 1;
-                STRATEGY.store(1, Ordering::Relaxed);
-            }
-            Err(e) => return Err(e),
-        }
-    }
-
-    let mut out = Vec::with_capacity(ids.len());
+    let total = ids.len();
+    let mut out = Vec::with_capacity(total);
     for (i, id) in ids.iter().enumerate() {
         if i > 0 {
             tokio::time::sleep(THROTTLE).await;
         }
-        if strategy == 1 {
-            match artists::get_artist(c, id).await {
-                Ok(Some(a)) => {
-                    out.push(a);
-                }
-                Ok(None) => {}
-                Err(e) if is_forbidden(&e) => {
-                    log::warn!("genre: single artist lookup forbidden; falling back to search by name");
-                    strategy = 2;
-                    STRATEGY.store(2, Ordering::Relaxed);
-                }
-                Err(e) => return Err(e),
+        let found = if use_search {
+            match names.get(id) {
+                Some(name) => lookup_search(state, id, name).await?,
+                None => None,
             }
+        } else {
+            lookup_single(state, id).await?
+        };
+        if let Some(a) = found {
+            out.push(a);
         }
-        if strategy == 2 {
-            let Some(name) = names.get(id) else { continue };
-            let hits = artists::search_artists(c, name).await?;
-            let lower = name.to_lowercase();
-            if let Some(a) = hits
-                .iter()
-                .find(|a| &a.id == id)
-                .or_else(|| hits.iter().find(|a| a.name.to_lowercase() == lower))
-            {
-                out.push(a.clone());
-            }
-        }
-        let _ = app.emit(
-            "genre-progress",
-            GenreProgress {
-                done: done_so_far + i + 1,
-                total,
-            },
-        );
+        let _ = app.emit("genre-progress", GenreProgress { done: i + 1, total });
     }
     Ok(out)
 }
 
-/// Genres for the given artist ids, from cache where fresh, fetched otherwise.
+/// Genres for the given artist ids: cache (unless `force`), then lookups.
+/// Returns (id → genres, number fetched, strategy, no-tags flag).
 async fn genres_for(
     app: &AppHandle,
     state: &AppState,
     ids: &[String],
     names: &HashMap<String, String>,
-) -> Result<(HashMap<String, Vec<String>>, usize)> {
-    let cutoff = now() - GENRE_CACHE_SECS;
+    force: bool,
+) -> Result<(HashMap<String, Vec<String>>, usize, &'static str, bool)> {
+    let cutoff = if force { i64::MAX } else { now() - GENRE_CACHE_SECS };
     let cached = state.db.with(|c| genres::get_many(c, ids, cutoff))?;
     let mut map: HashMap<String, Vec<String>> = cached.into_iter().map(|(id, a)| (id, a.genres)).collect();
 
     let missing: Vec<String> = ids.iter().filter(|id| !map.contains_key(*id)).cloned().collect();
-    let total = missing.len();
-    let mut fetched = 0usize;
-    for slice in missing.chunks(40) {
-        let list = fetch_artists(app, state, slice, names, fetched, total).await?;
+    let mut strategy = if USE_SEARCH.load(Ordering::Relaxed) { "search" } else { "single" };
+    let mut no_tags = false;
+
+    if !missing.is_empty() {
+        let mut list = fetch_all(app, state, &missing, names, strategy == "search").await?;
+
+        // Single lookups answered but nothing carried a tag: see whether search does.
+        if strategy == "single" && !list.is_empty() && list.iter().all(|a| a.genres.is_empty()) {
+            log::warn!("genre: {} artists returned with no genres via /artists/{{id}}; probing search", list.len());
+            let mut probe_hits = 0;
+            for a in list.iter().take(PROBE_COUNT) {
+                tokio::time::sleep(THROTTLE).await;
+                if let Some(s) = lookup_search(state, &a.id, &a.name).await? {
+                    if !s.genres.is_empty() {
+                        probe_hits += 1;
+                    }
+                }
+            }
+            if probe_hits > 0 {
+                log::info!("genre: search carries genres ({probe_hits}/{PROBE_COUNT} probes); switching strategy");
+                USE_SEARCH.store(true, Ordering::Relaxed);
+                strategy = "search";
+                list = fetch_all(app, state, &missing, names, true).await?;
+            } else {
+                log::warn!("genre: search returns no genres either; Spotify provides no tags for these artists");
+                no_tags = true;
+            }
+        }
+        if strategy == "search" && !list.is_empty() && list.iter().all(|a| a.genres.is_empty()) {
+            no_tags = true;
+        }
+
         let ts = now();
         let mut returned: HashSet<String> = HashSet::new();
         state.db.with(|c| {
@@ -163,26 +172,21 @@ async fn genres_for(
                     ts,
                 )?;
             }
+            // Ids Spotify did not return: cache as untagged so we do not retry every time.
+            for id in missing.iter().filter(|id| !list.iter().any(|a| &a.id == *id)) {
+                genres::put(c, &ArtistGenres { artist_id: id.clone(), name: names.get(id).cloned(), genres: vec![] }, ts)?;
+            }
             Ok(())
         })?;
         for a in list {
             returned.insert(a.id.clone());
             map.insert(a.id, a.genres);
         }
-        // Ids Spotify did not return: cache as untagged so we do not retry every time.
-        state.db.with(|c| {
-            for id in slice.iter().filter(|id| !returned.contains(*id)) {
-                genres::put(c, &ArtistGenres { artist_id: id.clone(), name: names.get(id).cloned(), genres: vec![] }, ts)?;
-            }
-            Ok(())
-        })?;
-        fetched += slice.len();
-        let _ = app.emit("genre-progress", GenreProgress { done: fetched, total });
     }
-    Ok((map, total))
+    Ok((map, missing.len(), strategy, no_tags))
 }
 
-pub async fn breakdown(app: &AppHandle, state: &AppState, playlist_id: &str) -> Result<GenreBreakdown> {
+pub async fn breakdown(app: &AppHandle, state: &AppState, playlist_id: &str, force: bool) -> Result<GenreBreakdown> {
     let tracks: Vec<TrackInfo> = fetch_playlist(state, playlist_id).await?.into_iter().filter(|t| t.playable).collect();
     let mut names: HashMap<String, String> = HashMap::new();
     for t in &tracks {
@@ -196,7 +200,7 @@ pub async fn breakdown(app: &AppHandle, state: &AppState, playlist_id: &str) -> 
     ids.sort();
     let artists_total = ids.len();
 
-    let (map, artists_fetched) = genres_for(app, state, &ids, &names).await?;
+    let (map, artists_fetched, strategy, no_tags) = genres_for(app, state, &ids, &names, force).await?;
 
     let mut counts: BTreeMap<String, usize> = BTreeMap::new();
     let mut untagged = 0usize;
@@ -232,11 +236,7 @@ pub async fn breakdown(app: &AppHandle, state: &AppState, playlist_id: &str) -> 
         untagged,
         artists_total,
         artists_fetched,
-        lookup_strategy: match STRATEGY.load(Ordering::Relaxed) {
-            1 => "single",
-            2 => "search",
-            _ => "batch",
-        }
-        .into(),
+        lookup_strategy: strategy.into(),
+        no_tags_from_spotify: no_tags,
     })
 }
