@@ -127,6 +127,25 @@ pub async fn add_items(c: &SpotifyClient, id: &str, uris: &[String], position: O
     Ok(())
 }
 
+/// Move `range_length` items starting at `range_start` so they sit before
+/// the item currently at `insert_before`. `PUT /playlists/{id}/items` with
+/// reorder parameters (mutually exclusive with `uris`). Keeps every item's
+/// `added_at` and internal id, unlike a replace.
+pub async fn reorder_items(
+    c: &SpotifyClient,
+    id: &str,
+    range_start: usize,
+    insert_before: usize,
+    range_length: usize,
+) -> Result<()> {
+    let body = json!({
+        "range_start": range_start,
+        "insert_before": insert_before,
+        "range_length": range_length,
+    });
+    c.put(&format!("/playlists/{id}/items"), &[], Some(&body)).await
+}
+
 /// Which body key the remove endpoint accepts: 0 unknown, 1 `tracks` (pre-2026
 /// shape), 2 `items` (renamed). Learned from the first successful call.
 static REMOVE_KEY: AtomicU8 = AtomicU8::new(0);

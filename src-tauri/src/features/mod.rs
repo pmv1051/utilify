@@ -2,6 +2,7 @@ pub mod bench;
 pub mod diff;
 pub mod discography;
 pub mod duplicates;
+pub mod editor;
 pub mod generated;
 pub mod matching;
 pub mod merge;

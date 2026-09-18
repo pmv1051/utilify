@@ -73,6 +73,8 @@ pub fn run() {
             commands::search_artists,
             commands::get_artist_albums,
             commands::create_discography,
+            commands::load_playlist_for_editor,
+            commands::apply_playlist_order,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

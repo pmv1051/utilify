@@ -191,6 +191,20 @@ export interface AlbumInfo {
   artists: string;
 }
 
+export interface EditorTrack extends TrackRow {
+  liked: boolean | null;
+}
+
+export interface EditorProgress {
+  playlistId: string;
+  done: number;
+  total: number;
+}
+
+export interface ApplyResult {
+  moves: number;
+}
+
 export interface DiscographyResult {
   playlist: GeneratedPlaylist;
   albums: number;
@@ -283,4 +297,8 @@ export const api = {
     dedupeByName: boolean;
     randomize: boolean;
   }) => invoke<DiscographyResult>("create_discography", args),
+
+  loadPlaylistForEditor: (playlistId: string) => invoke<EditorTrack[]>("load_playlist_for_editor", { playlistId }),
+  applyPlaylistOrder: (playlistId: string, order: number[]) =>
+    invoke<ApplyResult>("apply_playlist_order", { playlistId, order }),
 };

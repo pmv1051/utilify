@@ -14,6 +14,7 @@ use crate::error::{AppError, Result};
 use crate::features::diff::{self, DiffResult};
 use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
+use crate::features::editor::{self, ApplyResult, EditorTrack};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
@@ -299,6 +300,24 @@ pub async fn diff_playlists(
     match_by_name: bool,
 ) -> Result<DiffResult> {
     diff::diff(&state, &a, &b, match_by_name).await
+}
+
+// ---- tools: editor ---------------------------------------------------------
+
+#[tauri::command]
+pub async fn load_playlist_for_editor(state: State<'_, AppState>, playlist_id: String) -> Result<Vec<EditorTrack>> {
+    editor::load(&state, &playlist_id).await
+}
+
+/// `order` is the desired final order expressed as current positions.
+#[tauri::command]
+pub async fn apply_playlist_order(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    playlist_id: String,
+    order: Vec<usize>,
+) -> Result<ApplyResult> {
+    editor::apply_order(&app, &state, &playlist_id, &order).await
 }
 
 // ---- tools: discography ----------------------------------------------------
