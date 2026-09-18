@@ -12,6 +12,7 @@ use crate::db::randomizer::SessionRow;
 use crate::db::{self, config};
 use crate::error::{AppError, Result};
 use crate::features::diff::{self, DiffResult};
+use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
@@ -298,6 +299,50 @@ pub async fn diff_playlists(
     match_by_name: bool,
 ) -> Result<DiffResult> {
     diff::diff(&state, &a, &b, match_by_name).await
+}
+
+// ---- tools: discography ----------------------------------------------------
+
+#[tauri::command]
+pub async fn search_artists(state: State<'_, AppState>, query: String) -> Result<Vec<ArtistHit>> {
+    discography::search(&state, &query).await
+}
+
+#[tauri::command]
+pub async fn get_artist_albums(
+    state: State<'_, AppState>,
+    artist_id: String,
+    include_compilations: bool,
+    include_appears_on: bool,
+) -> Result<Vec<AlbumInfo>> {
+    discography::albums(&state, &artist_id, include_compilations, include_appears_on).await
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub async fn create_discography(
+    state: State<'_, AppState>,
+    artist_id: String,
+    artist_name: String,
+    album_ids: Vec<String>,
+    name: String,
+    only_this_artist: bool,
+    dedupe_by_name: bool,
+    randomize: bool,
+) -> Result<DiscographyResult> {
+    discography::build(
+        &state,
+        discography::BuildRequest {
+            artist_id: &artist_id,
+            artist_name: &artist_name,
+            album_ids: &album_ids,
+            name: &name,
+            only_this_artist,
+            dedupe_by_name,
+            randomize,
+        },
+    )
+    .await
 }
 
 #[tauri::command]

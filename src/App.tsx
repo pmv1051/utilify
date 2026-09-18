@@ -9,6 +9,7 @@ import { BenchPage } from "./pages/BenchPage";
 import { DuplicatesPage } from "./pages/DuplicatesPage";
 import { DiffPage } from "./pages/DiffPage";
 import { MergePage } from "./pages/MergePage";
+import { DiscographyPage } from "./pages/DiscographyPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { NowPlaying } from "./components/NowPlaying";
@@ -77,7 +78,8 @@ export default function App() {
           {page === "duplicates" && <DuplicatesPage />}
           {page === "diff" && <DiffPage />}
           {page === "merge" && <MergePage />}
-          {["discography", "editor", "exportimport"].includes(page) && (
+          {page === "discography" && <DiscographyPage />}
+          {["editor", "exportimport"].includes(page) && (
             <div className="p-6 text-sm text-muted">This tool is coming next in Phase 3.</div>
           )}
           {page === "settings" && <SettingsPage />}

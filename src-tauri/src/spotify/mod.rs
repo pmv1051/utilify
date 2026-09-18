@@ -1,3 +1,4 @@
+pub mod artists;
 pub mod auth;
 pub mod client;
 pub mod models;

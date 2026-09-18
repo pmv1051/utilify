@@ -70,6 +70,9 @@ pub fn run() {
             commands::remove_tracks_from_playlist,
             commands::diff_playlists,
             commands::merge_playlists,
+            commands::search_artists,
+            commands::get_artist_albums,
+            commands::create_discography,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

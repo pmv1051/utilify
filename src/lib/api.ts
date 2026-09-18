@@ -173,6 +173,32 @@ export interface MergeResult {
   duplicatesSkipped: number;
 }
 
+export interface ArtistHit {
+  id: string;
+  name: string;
+  imageUrl: string | null;
+  genres: string[];
+  followers: number | null;
+}
+
+export interface AlbumInfo {
+  id: string;
+  name: string;
+  group: "album" | "single" | "compilation" | "appears_on" | string;
+  releaseDate: string | null;
+  totalTracks: number;
+  imageUrl: string | null;
+  artists: string;
+}
+
+export interface DiscographyResult {
+  playlist: GeneratedPlaylist;
+  albums: number;
+  tracksSeen: number;
+  duplicatesSkipped: number;
+  otherArtistSkipped: number;
+}
+
 export interface BenchRow {
   id: number;
   trackUri: string;
@@ -244,4 +270,17 @@ export const api = {
     invoke<DiffResult>("diff_playlists", { a, b, matchByName }),
   mergePlaylists: (playlistIds: string[], name: string, dedupeByName: boolean, randomize: boolean) =>
     invoke<MergeResult>("merge_playlists", { playlistIds, name, dedupeByName, randomize }),
+
+  searchArtists: (query: string) => invoke<ArtistHit[]>("search_artists", { query }),
+  getArtistAlbums: (artistId: string, includeCompilations: boolean, includeAppearsOn: boolean) =>
+    invoke<AlbumInfo[]>("get_artist_albums", { artistId, includeCompilations, includeAppearsOn }),
+  createDiscography: (args: {
+    artistId: string;
+    artistName: string;
+    albumIds: string[];
+    name: string;
+    onlyThisArtist: boolean;
+    dedupeByName: boolean;
+    randomize: boolean;
+  }) => invoke<DiscographyResult>("create_discography", args),
 };
