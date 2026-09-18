@@ -25,9 +25,22 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "endpoints": ["https://github.com/pmv1051/utilify/releases/latest/download/latest.json"],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEE3MDdDOEQyNEU5MENGOTgKUldTWXo1Qk8wc2dIcC9uWG9ZNm5wSjBTOTZxVnBIaUhON1B1VHBJNzNVdm5NWS9LSWxKY1liMG0K",
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
+    "shortDescription": "Spotify playlist utilities",
+    "longDescription": "Shadow playlist randomizer, bench, duplicate scanner, diff, merge, discography builder, playlist editor and export/import for Spotify. Bring your own Spotify Client ID.",
+    "category": "Music",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -9,6 +9,7 @@ pub mod matching;
 pub mod merge;
 pub mod randomizer;
 pub mod tracks;
+pub mod updater;
 
 use crate::db::playlists::PlaylistRow;
 use crate::db::{self, now, Db};

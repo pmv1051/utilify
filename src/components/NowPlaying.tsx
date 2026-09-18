@@ -33,6 +33,9 @@ export function NowPlaying() {
   const refreshBenches = useApp((s) => s.refreshBenches);
   const setPage = useApp((s) => s.setPage);
   const toast = useApp((s) => s.toast);
+  const setup = useApp((s) => s.setup);
+  const premium = setup?.userProduct === "premium" || !setup?.userProduct;
+  const premiumTitle = premium ? undefined : "Spotify Premium is required to control playback.";
 
   // ---- resizable height ----
   const [height, setHeight] = useState(loadHeight);
@@ -95,6 +98,10 @@ export function NowPlaying() {
   const [benchOpen, setBenchOpen] = useState(false);
 
   async function cmd(action: PlayerAction, value?: string) {
+    if (!premium) {
+      toast("error", "Spotify Premium is required to control playback.");
+      return;
+    }
     setBusy(action);
     try {
       setPlayback(await api.playerCommand(action, value));
@@ -226,18 +233,19 @@ export function NowPlaying() {
           {/* Row 2: transport + actions */}
           {tier >= 1 && (
             <div className="flex items-center gap-2 px-5 pb-3">
-              <IconButton title="Previous" onClick={() => cmd("previous")} busy={busy === "previous"}>
+              <IconButton title={premiumTitle ?? "Previous"} onClick={() => cmd("previous")} busy={busy === "previous"} disabled={!premium}>
                 ⏮
               </IconButton>
               <IconButton
-                title={playback?.isPlaying ? "Pause" : "Play"}
+                title={premiumTitle ?? (playback?.isPlaying ? "Pause" : "Play")}
                 onClick={() => cmd(playback?.isPlaying ? "pause" : "play")}
                 busy={busy === "play" || busy === "pause"}
+                disabled={!premium}
                 primary
               >
                 {playback?.isPlaying ? "⏸" : "▶"}
               </IconButton>
-              <IconButton title="Next" onClick={() => cmd("next")} busy={busy === "next"}>
+              <IconButton title={premiumTitle ?? "Next"} onClick={() => cmd("next")} busy={busy === "next"} disabled={!premium}>
                 ⏭
               </IconButton>
 
@@ -333,18 +341,20 @@ function IconButton({
   title,
   busy,
   primary,
+  disabled,
 }: {
   children: string;
   onClick: () => void;
   title: string;
   busy?: boolean;
   primary?: boolean;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
       title={title}
-      disabled={busy}
+      disabled={busy || disabled}
       className={`flex h-8 w-8 items-center justify-center rounded-full text-sm transition disabled:opacity-60 ${
         primary ? "bg-white text-black hover:bg-zinc-200" : "text-zinc-300 hover:bg-panel-2 hover:text-white"
       }`}

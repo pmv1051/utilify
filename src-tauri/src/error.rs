@@ -5,7 +5,7 @@ use serde::Serialize;
 pub enum AppError {
     #[error("database error: {0}")]
     Db(#[from] rusqlite::Error),
-    #[error("network error: {0}")]
+    #[error("Can't reach Spotify right now. Check your internet connection and try again.")]
     Http(#[from] reqwest::Error),
     #[error("{0}")]
     Io(#[from] std::io::Error),

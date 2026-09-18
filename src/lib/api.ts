@@ -22,6 +22,24 @@ export interface Settings {
   userDisplayName: string | null;
   userId: string | null;
   dbPath: string;
+  appVersion: string;
+}
+
+export interface Connectivity {
+  online: boolean;
+  since: number | null;
+}
+
+export interface UpdateInfo {
+  version: string;
+  currentVersion: string;
+  notes: string | null;
+  date: string | null;
+}
+
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
 }
 
 export interface Playlist {
@@ -340,5 +358,8 @@ export const api = {
 
   getQuotaStatus: () => invoke<QuotaStatus>("get_quota_status"),
   clearQuotaCooldown: () => invoke<void>("clear_quota_cooldown"),
+  getConnectivity: () => invoke<Connectivity>("get_connectivity"),
+  checkForUpdate: () => invoke<UpdateInfo | null>("check_for_update"),
+  installUpdate: () => invoke<void>("install_update"),
 
 };

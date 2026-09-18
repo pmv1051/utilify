@@ -8,6 +8,7 @@ import {
   type RandomizerSession,
   type Settings,
   type SetupState,
+  type UpdateInfo,
 } from "../lib/api";
 
 export type Page =
@@ -45,11 +46,17 @@ interface AppStore {
   playbackReceivedAt: number;
   /** Unix seconds until artist-family API calls are paused, or null. */
   quotaCooldownUntil: number | null;
+  /** Unix seconds since Spotify became unreachable, or null when online. */
+  offlineSince: number | null;
+  /** Newer version found by the updater, if any. */
+  availableUpdate: UpdateInfo | null;
   toasts: Toast[];
 
   init: () => Promise<void>;
   setQuotaCooldown: (until: number | null) => void;
   refreshQuota: () => Promise<void>;
+  setOfflineSince: (since: number | null) => void;
+  setAvailableUpdate: (u: UpdateInfo | null) => void;
   setPage: (page: Page) => void;
   openBenchFor: (playlistId: string) => void;
   setBenchPlaylist: (playlistId: string | null) => void;
@@ -80,6 +87,8 @@ export const useApp = create<AppStore>((set, get) => ({
   playback: null,
   playbackReceivedAt: 0,
   quotaCooldownUntil: null,
+  offlineSince: null,
+  availableUpdate: null,
   toasts: [],
 
   init: async () => {
@@ -105,6 +114,8 @@ export const useApp = create<AppStore>((set, get) => ({
   },
 
   setQuotaCooldown: (until) => set({ quotaCooldownUntil: until }),
+  setOfflineSince: (since) => set({ offlineSince: since }),
+  setAvailableUpdate: (u) => set({ availableUpdate: u }),
 
   refreshQuota: async () => {
     try {

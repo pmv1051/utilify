@@ -20,7 +20,9 @@ use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
 use crate::features::tracks::{self, TrackInfo};
+use crate::features::updater::{self, UpdateInfo};
 use crate::features::{self, bench};
+use crate::polling::Connectivity;
 use crate::spotify::client::QuotaStatus;
 use crate::spotify::models::PlaybackState;
 use crate::spotify::{auth, playback, playlists};
@@ -48,6 +50,7 @@ pub struct Settings {
     pub user_display_name: Option<String>,
     pub user_id: Option<String>,
     pub db_path: String,
+    pub app_version: String,
 }
 
 fn setup_state(state: &AppState) -> Result<SetupState> {
@@ -167,6 +170,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
         user_display_name: display_name,
         user_id: uid,
         db_path: state.db_path.display().to_string(),
+        app_version: updater::current_version().to_string(),
     })
 }
 
@@ -337,6 +341,27 @@ pub async fn save_text_file(app: AppHandle, file_name: String, content: String) 
 #[tauri::command]
 pub async fn import_search(app: AppHandle, state: State<'_, AppState>, lines: Vec<String>) -> Result<Vec<ImportMatch>> {
     export_import::import_search(&app, &state, &lines).await
+}
+
+// ---- connectivity & updates -----------------------------------------------
+
+#[tauri::command]
+pub fn get_connectivity(state: State<'_, AppState>) -> Connectivity {
+    let since = state.offline_since();
+    Connectivity {
+        online: since.is_none(),
+        since,
+    }
+}
+
+#[tauri::command]
+pub async fn check_for_update(app: AppHandle, state: State<'_, AppState>) -> Result<Option<UpdateInfo>> {
+    updater::check(&app, &state).await
+}
+
+#[tauri::command]
+pub async fn install_update(app: AppHandle, state: State<'_, AppState>) -> Result<()> {
+    updater::install(&app, &state).await
 }
 
 // ---- quota ----------------------------------------------------------------

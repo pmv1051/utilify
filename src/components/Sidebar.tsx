@@ -44,6 +44,8 @@ export function Sidebar() {
   const sessions = useApp((s) => s.sessions);
   const benches = useApp((s) => s.benches);
   const cooldown = useQuotaCooldown();
+  const offlineSince = useApp((s) => s.offlineSince);
+  const availableUpdate = useApp((s) => s.availableUpdate);
   const badge: Partial<Record<Page, number>> = { randomizer: sessions.length, bench: benches.length };
 
   return (
@@ -78,6 +80,25 @@ export function Sidebar() {
           </div>
         ))}
       </nav>
+      {offlineSince !== null && (
+        <div
+          className="mx-3 mb-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+          title="Utilify retries every 30 seconds. Re-shuffles and bench restores resume automatically once Spotify answers again."
+        >
+          <div className="font-semibold">Spotify unreachable</div>
+          <div className="text-red-200/80">Since {new Date(offlineSince * 1000).toLocaleTimeString()} · retrying</div>
+        </div>
+      )}
+      {availableUpdate && (
+        <button
+          onClick={() => setPage("settings")}
+          className="mx-3 mb-2 rounded-md border border-spotify/40 bg-spotify/10 px-3 py-2 text-left text-xs text-spotify hover:bg-spotify/20"
+          title="Open Settings → Updates to install"
+        >
+          <div className="font-semibold">Update available</div>
+          <div className="text-spotify/80">Utilify {availableUpdate.version}</div>
+        </button>
+      )}
       {cooldown.active && (
         <div className="mx-3 mb-2 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-300" title={cooldown.reason}>
           <div className="font-semibold">API quota paused</div>

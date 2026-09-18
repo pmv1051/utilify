@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useApp } from "./stores/app";
-import type { BenchRow, PlaybackState, QuotaStatus, RandomizerSession } from "./lib/api";
+import { api, type BenchRow, type Connectivity, type PlaybackState, type QuotaStatus, type RandomizerSession } from "./lib/api";
 import { SetupPage } from "./pages/SetupPage";
 import { PlaylistsPage } from "./pages/PlaylistsPage";
 import { RandomizerPage } from "./pages/RandomizerPage";
@@ -28,10 +28,23 @@ export default function App() {
   const refreshSessions = useApp((s) => s.refreshSessions);
   const refreshBenches = useApp((s) => s.refreshBenches);
   const setQuotaCooldown = useApp((s) => s.setQuotaCooldown);
+  const setOfflineSince = useApp((s) => s.setOfflineSince);
+  const setAvailableUpdate = useApp((s) => s.setAvailableUpdate);
   const toast = useApp((s) => s.toast);
 
   useEffect(() => {
-    init();
+    init().then(() => {
+      // One quiet update check per launch; failures (no release yet, offline) are ignored.
+      api
+        .checkForUpdate()
+        .then((u) => {
+          if (u) {
+            setAvailableUpdate(u);
+            toast("info", `Utilify ${u.version} is available. Install it from Settings → Updates.`);
+          }
+        })
+        .catch(() => {});
+    });
     const unlisteners = [
       listen<PlaybackState | null>("playback-state", (e) => setPlayback(e.payload)),
       listen<RandomizerSession>("randomizer-reshuffled", (e) => {
@@ -44,6 +57,10 @@ export default function App() {
         toast("info", `"${e.payload.trackName ?? e.payload.trackUri}" is back in "${e.payload.playlistName ?? "its playlist"}".`);
       }),
       listen<string>("bench-error", (e) => toast("error", e.payload)),
+      listen<Connectivity>("connectivity", (e) => {
+        setOfflineSince(e.payload.online ? null : e.payload.since);
+        if (e.payload.online) toast("success", "Spotify is reachable again.");
+      }),
       listen<QuotaStatus>("quota-cooldown", (e) => {
         setQuotaCooldown(e.payload.cooldownUntil);
         if (e.payload.cooldownUntil) {
@@ -58,7 +75,7 @@ export default function App() {
     return () => {
       unlisteners.forEach((p) => p.then((un) => un()));
     };
-  }, [init, setPlayback, refreshSessions, refreshBenches, setQuotaCooldown, toast]);
+  }, [init, setPlayback, refreshSessions, refreshBenches, setQuotaCooldown, setOfflineSince, setAvailableUpdate, toast]);
 
   if (!ready || !setup) {
     return (

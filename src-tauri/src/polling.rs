@@ -15,6 +15,13 @@ use crate::spotify::playback;
 use crate::state::AppState;
 
 pub const POLL_INTERVAL: Duration = Duration::from_secs(30);
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Connectivity {
+    pub online: bool,
+    pub since: Option<i64>,
+}
 const STARTUP_DELAY: Duration = Duration::from_secs(3);
 /// Minimum gap after an explicit `poll_now` nudge, so a burst of user actions
 /// cannot turn into a burst of requests.
@@ -43,6 +50,10 @@ async fn tick(app: &AppHandle) {
     }
     match playback::get_playback_state(&state.spotify).await {
         Ok(current) => {
+            if state.set_online(true, crate::db::now()).is_some() {
+                log::info!("polling: Spotify reachable again");
+                let _ = app.emit("connectivity", Connectivity { online: true, since: None });
+            }
             let previous = state.set_last_playback(current.clone());
             let _ = app.emit("playback-state", &current);
             randomizer::on_poll(app, &state, previous.as_ref(), current.as_ref()).await;
@@ -50,6 +61,15 @@ async fn tick(app: &AppHandle) {
         Err(AppError::AuthExpired) | Err(AppError::NotAuthenticated) => {
             log::warn!("polling: session expired");
             let _ = app.emit("auth-expired", ());
+            return;
+        }
+        Err(e @ AppError::Http(_)) => {
+            log::warn!("polling: playback fetch failed: {e}");
+            let now = crate::db::now();
+            if state.set_online(false, now).is_some() {
+                let _ = app.emit("connectivity", Connectivity { online: false, since: Some(now) });
+            }
+            // No point running scheduled work without connectivity.
             return;
         }
         Err(e) => log::warn!("polling: playback fetch failed: {e}"),

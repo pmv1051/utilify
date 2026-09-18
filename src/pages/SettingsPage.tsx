@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { api, errorMessage } from "../lib/api";
+import { useEffect, useState } from "react";
+import { listen } from "@tauri-apps/api/event";
+import { api, errorMessage, type UpdateProgress } from "../lib/api";
 import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
+import { Spinner } from "../components/Spinner";
 import { useQuotaCooldown } from "../lib/quota";
 
 export function SettingsPage() {
@@ -11,7 +13,45 @@ export function SettingsPage() {
   const setSetup = useApp((s) => s.setSetup);
   const toast = useApp((s) => s.toast);
   const cooldown = useQuotaCooldown();
+  const availableUpdate = useApp((s) => s.availableUpdate);
+  const setAvailableUpdate = useApp((s) => s.setAvailableUpdate);
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState<UpdateProgress | null>(null);
+  const [checkedOnce, setCheckedOnce] = useState(false);
+
+  useEffect(() => {
+    const un = listen<UpdateProgress>("update-progress", (e) => setProgress(e.payload));
+    return () => {
+      un.then((f) => f());
+    };
+  }, []);
+
+  async function checkUpdate() {
+    setChecking(true);
+    try {
+      const u = await api.checkForUpdate();
+      setAvailableUpdate(u);
+      setCheckedOnce(true);
+      if (!u) toast("info", "You are on the latest version.");
+    } catch (e) {
+      toast("error", errorMessage(e));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function installUpdate() {
+    setInstalling(true);
+    setProgress(null);
+    try {
+      await api.installUpdate(); // restarts the app on success
+    } catch (e) {
+      toast("error", errorMessage(e));
+      setInstalling(false);
+    }
+  }
 
   async function toggleTray(enabled: boolean) {
     try {
@@ -102,8 +142,47 @@ export function SettingsPage() {
           )}
         </Section>
 
+        <Section title="Updates">
+          <Row label="Version" value={settings.appVersion} mono />
+          {availableUpdate ? (
+            <div className="mt-2 text-sm">
+              <div className="text-spotify">Utilify {availableUpdate.version} is available.</div>
+              {availableUpdate.notes && (
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-ink p-3 text-xs text-zinc-300">{availableUpdate.notes}</pre>
+              )}
+              <div className="mt-3 flex items-center gap-3">
+                <Button onClick={installUpdate} disabled={installing} title="Downloads the update, installs it and restarts Utilify">
+                  {installing ? <Spinner /> : "Install and restart"}
+                </Button>
+                {installing && (
+                  <span className="text-xs text-muted">
+                    {progress
+                      ? progress.total
+                        ? `${Math.round((progress.downloaded / progress.total) * 100)}%`
+                        : `${Math.round(progress.downloaded / 1024 / 1024)} MB`
+                      : "Starting download…"}
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 flex items-center gap-3">
+              <Button variant="secondary" onClick={checkUpdate} disabled={checking}>
+                {checking ? <Spinner /> : "Check for updates"}
+              </Button>
+              <span className="text-xs text-muted">
+                {checkedOnce ? "Up to date." : "Utilify checks once at launch. Updates come from GitHub Releases."}
+              </span>
+            </div>
+          )}
+        </Section>
+
         <Section title="Storage">
           <Row label="Database" value={settings.dbPath} mono />
+          <p className="mt-2 text-xs text-muted">
+            Logs: <span className="font-mono">%LOCALAPPDATA%\com.utilify.desktop\logs\Utilify.log</span> (Windows). Nothing
+            leaves this computer except calls to Spotify's API.
+          </p>
         </Section>
       </div>
     </div>
