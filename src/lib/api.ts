@@ -275,6 +275,30 @@ export interface StatsSummary {
   mostSkipped: TrackStat[];
 }
 
+export interface GenreCount {
+  genre: string;
+  count: number;
+}
+
+export interface GenreTrack extends TrackRow {
+  genres: string[];
+}
+
+export interface GenreBreakdown {
+  playlistId: string;
+  playlistName: string;
+  genres: GenreCount[];
+  tracks: GenreTrack[];
+  untagged: number;
+  artistsTotal: number;
+  artistsFetched: number;
+}
+
+export interface GenreProgress {
+  done: number;
+  total: number;
+}
+
 export interface PlayFinished {
   trackUri: string;
   listenedMs: number;
@@ -385,4 +409,5 @@ export const api = {
   importSearch: (lines: string[]) => invoke<ImportMatch[]>("import_search", { lines }),
 
   getStats: (rangeDays: number | null) => invoke<StatsSummary>("get_stats", { rangeDays }),
+  genreBreakdown: (playlistId: string) => invoke<GenreBreakdown>("genre_breakdown", { playlistId }),
 };

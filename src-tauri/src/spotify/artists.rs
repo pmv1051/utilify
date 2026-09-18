@@ -26,6 +26,31 @@ pub struct ArtistObject {
 }
 
 #[derive(Debug, Deserialize)]
+struct SeveralArtistsResponse {
+    #[serde(default)]
+    artists: Vec<Option<ArtistObject>>,
+}
+
+/// Ids per `GET /artists?ids=` request. Documented max is 50; kept lower in
+/// case the 2026 API caps it like it caps `limit`.
+const ARTISTS_BATCH: usize = 20;
+
+/// `GET /artists?ids=…` for any number of ids (batched). Unknown ids are dropped.
+pub async fn get_artists(c: &SpotifyClient, ids: &[String]) -> Result<Vec<ArtistObject>> {
+    let mut out = Vec::with_capacity(ids.len());
+    for (i, chunk) in ids.chunks(ARTISTS_BATCH).enumerate() {
+        if i > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        }
+        let resp: Option<SeveralArtistsResponse> = c.get("/artists", &[("ids", chunk.join(","))]).await?;
+        if let Some(r) = resp {
+            out.extend(r.artists.into_iter().flatten());
+        }
+    }
+    Ok(out)
+}
+
+#[derive(Debug, Deserialize)]
 struct ArtistSearchResponse {
     #[serde(default)]
     artists: Option<Paging<ArtistObject>>,

@@ -81,6 +81,7 @@ pub fn run() {
             commands::save_text_file,
             commands::import_search,
             commands::get_stats,
+            commands::genre_breakdown,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");
