@@ -67,3 +67,66 @@ pub fn close_stale(conn: &Connection, threshold_ms: i64) -> rusqlite::Result<usi
         [threshold_ms],
     )
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::db::migrations;
+
+    pub(crate) fn fresh() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        migrations::run(&conn).unwrap();
+        conn
+    }
+
+    pub(crate) fn play(conn: &Connection, uri: &str, artist: &str, started: i64, listened: i64, finish_it: bool) -> i64 {
+        let id = start(
+            conn,
+            &NewPlay {
+                track_uri: uri,
+                track_name: Some("T"),
+                artist_name: Some(artist),
+                artist_id: Some(artist),
+                album_name: None,
+                context_uri: Some("spotify:playlist:p1"),
+                started_at: started,
+                duration_ms: Some(200_000),
+                listened_ms: 0,
+            },
+        )
+        .unwrap();
+        if finish_it {
+            finish(conn, id, listened, started + listened / 1000, 10_000).unwrap();
+        } else {
+            update(conn, id, listened, started + 30).unwrap();
+        }
+        id
+    }
+
+    #[test]
+    fn lifecycle_and_stale_rows() {
+        let conn = fresh();
+        let t0 = 1_800_000_000;
+        play(&conn, "spotify:track:a", "A", t0, 120_000, true);
+        play(&conn, "spotify:track:a", "A", t0 + 400, 5_000, true); // skip
+        play(&conn, "spotify:track:c", "C", t0 + 1200, 40_000, false); // left open
+
+        let skipped: i64 = conn
+            .query_row("SELECT SUM(skipped) FROM playback_log WHERE ended_at IS NOT NULL", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(skipped, 1);
+
+        // Open row gets closed at "launch" and classified.
+        assert_eq!(close_stale(&conn, 10_000).unwrap(), 1);
+        assert_eq!(close_stale(&conn, 10_000).unwrap(), 0);
+        let (ended, skipped_c): (Option<i64>, i64) = conn
+            .query_row(
+                "SELECT ended_at, skipped FROM playback_log WHERE track_uri = 'spotify:track:c'",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .unwrap();
+        assert_eq!(ended, Some(t0 + 1200 + 30));
+        assert_eq!(skipped_c, 0);
+    }
+}

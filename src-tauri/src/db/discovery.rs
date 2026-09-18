@@ -275,6 +275,86 @@ pub struct DiscoveryTotals {
     pub pending: i64,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::playback_log::tests::{fresh, play};
+
+    #[test]
+    fn seen_rules() {
+        let mut conn = fresh();
+        let src = SourceRow {
+            key: "seed_artist:x".into(),
+            kind: "seed_artist".into(),
+            label: "X".into(),
+            indexed_at: 1,
+            track_count: 0,
+        };
+        let pool = ["spotify:track:p1", "spotify:track:p2", "spotify:track:p3", "spotify:track:p4"];
+        let rows: Vec<PoolTrack<'_>> = pool
+            .iter()
+            .enumerate()
+            .map(|(i, u)| PoolTrack {
+                track_uri: u,
+                name: Some("n"),
+                artists: Some(if i < 2 { "Same Artist" } else { "Other" }),
+                artist_id: None,
+                album: None,
+            })
+            .collect();
+        replace_source(&mut conn, &src, &rows).unwrap();
+        assert_eq!(pool_counts(&conn).unwrap(), (4, 4));
+
+        // In a library playlist → seen.
+        replace_library_playlist(&mut conn, "pl", &["spotify:track:p1".to_string()]).unwrap();
+        // Skipped once → seen.
+        play(&conn, "spotify:track:p2", "Same Artist", 10, 3_000, true);
+        assert_eq!(pool_counts(&conn).unwrap(), (4, 2));
+
+        let sample = sample_unseen(&conn, 10).unwrap();
+        let uris: Vec<&str> = sample.iter().map(|c| c.track_uri.as_str()).collect();
+        assert_eq!(sample.len(), 2);
+        assert!(uris.contains(&"spotify:track:p3") && uris.contains(&"spotify:track:p4"));
+
+        // Offering logs it as queued and it is no longer unseen; outcome updates the row.
+        log_offered(&conn, &sample[0], 20).unwrap();
+        assert_eq!(pool_counts(&conn).unwrap().1, 1);
+        assert!(mark_outcome(&conn, &sample[0].track_uri, false).unwrap());
+        assert!(!mark_outcome(&conn, &sample[0].track_uri, false).unwrap());
+        let t = totals(&conn).unwrap();
+        assert_eq!((t.offered, t.listened, t.skipped, t.pending), (1, 1, 0, 0));
+
+        remove_source(&mut conn, &src.key).unwrap();
+        assert_eq!(pool_counts(&conn).unwrap(), (0, 0));
+    }
+
+    #[test]
+    fn playlist_order_and_between_marking() {
+        let conn = fresh();
+        let order: Vec<String> = (1..=5).map(|i| format!("spotify:track:d{i}")).collect();
+        save_playlist(&conn, "dp", "Utilify: Discovery", &order, 1).unwrap();
+        assert_eq!(playlist_order(&conn, "dp").unwrap(), Some(order.clone()));
+        assert_eq!(playlist_order(&conn, "other").unwrap(), None);
+
+        for u in &order {
+            let c = Candidate {
+                track_uri: u.clone(),
+                name: None,
+                artists: None,
+                album: None,
+                source_key: "s".into(),
+            };
+            log_offered(&conn, &c, 2).unwrap();
+        }
+        // Jumped from index 0 to index 3: tracks 1 and 2 were played through.
+        let between = order[1..3].to_vec();
+        assert_eq!(mark_listened(&conn, &between).unwrap(), 2);
+        assert_eq!(mark_listened(&conn, &between).unwrap(), 0);
+        let t = totals(&conn).unwrap();
+        assert_eq!((t.offered, t.listened, t.pending), (5, 2, 3));
+    }
+}
+
 pub fn totals(conn: &Connection) -> rusqlite::Result<DiscoveryTotals> {
     conn.query_row(
         "SELECT COUNT(*),

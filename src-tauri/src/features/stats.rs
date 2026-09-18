@@ -1,4 +1,6 @@
-//! Playback logging (fed by the polling loop) and the Stats summary.
+//! Playback logging (fed by the polling loop). Feeds Discovery outcomes
+//! (listened vs skipped); the polling-based stats dashboard was removed
+//! because 30 s snapshots are too coarse for meaningful statistics.
 //!
 //! Polls are 30 s apart, so listening time is credited from progress deltas
 //! between polls: a delta larger than the wall-clock gap means a seek and is
@@ -11,7 +13,6 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::db::playback_log::{self, NewPlay};
-use crate::db::stats::StatsSummary;
 use crate::db::{self, config, now};
 use crate::error::{AppError, Result};
 use crate::spotify::models::PlaybackState;
@@ -170,8 +171,3 @@ pub fn close_stale(state: &AppState) {
     }
 }
 
-pub fn summary(state: &AppState, range_days: Option<u32>) -> Result<StatsSummary> {
-    let since = range_days.map(|d| now() - d as i64 * 86_400);
-    let threshold = play_threshold_ms(state);
-    state.db.with(|c| db::stats::summary(c, since, threshold))
-}

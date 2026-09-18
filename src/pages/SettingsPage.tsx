@@ -9,6 +9,8 @@ export function SettingsPage() {
   const setSetup = useApp((s) => s.setSetup);
   const toast = useApp((s) => s.toast);
   const [busy, setBusy] = useState(false);
+  const [threshold, setThreshold] = useState<string | null>(null);
+  const [savingThreshold, setSavingThreshold] = useState(false);
 
   async function toggleTray(enabled: boolean) {
     try {
@@ -32,6 +34,25 @@ export function SettingsPage() {
   }
 
   if (!settings) return <div className="p-6 text-muted">Loading…</div>;
+
+  const thresholdInput = threshold ?? String(settings.playThresholdSecs);
+  const thresholdValue = Number(thresholdInput);
+  const thresholdValid = Number.isInteger(thresholdValue) && thresholdValue >= 1 && thresholdValue <= 600;
+
+  async function saveThreshold() {
+    if (!thresholdValid) return;
+    setSavingThreshold(true);
+    try {
+      await api.setPlayThreshold(thresholdValue);
+      await refreshSettings();
+      setThreshold(null);
+      toast("success", `A play now counts after ${thresholdValue} s.`);
+    } catch (e) {
+      toast("error", errorMessage(e));
+    } finally {
+      setSavingThreshold(false);
+    }
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -67,6 +88,31 @@ export function SettingsPage() {
             </Button>
             <span className="ml-3 text-xs text-muted">Removes the stored tokens. Your Client ID is kept.</span>
           </div>
+        </Section>
+
+        <Section title="Discovery">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            A track counts as listened after
+            <input
+              type="number"
+              min={1}
+              max={600}
+              value={thresholdInput}
+              onChange={(e) => setThreshold(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && saveThreshold()}
+              className="w-20 rounded-md border border-line bg-ink px-2 py-1 text-sm outline-none focus:border-spotify"
+            />
+            seconds; anything shorter is a skip.
+            {thresholdValid && thresholdValue !== settings.playThresholdSecs && (
+              <Button onClick={saveThreshold} disabled={savingThreshold}>
+                {savingThreshold ? "Saving…" : "Apply"}
+              </Button>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted">
+            Decides how Discovery records a track you were offered. Playback is checked every 30 seconds, so this is
+            approximate.
+          </p>
         </Section>
 
         <Section title="Storage">

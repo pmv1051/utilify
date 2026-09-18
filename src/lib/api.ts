@@ -22,6 +22,7 @@ export interface Settings {
   userDisplayName: string | null;
   userId: string | null;
   dbPath: string;
+  playThresholdSecs: number;
 }
 
 export interface Playlist {
@@ -231,52 +232,6 @@ export interface ImportProgress {
   total: number;
 }
 
-export interface TrackStat {
-  uri: string;
-  name: string | null;
-  artist: string | null;
-  plays: number;
-  listenedMs: number;
-  skips: number;
-}
-
-export interface ArtistStat {
-  artist: string;
-  artistId: string | null;
-  plays: number;
-  listenedMs: number;
-  skips: number;
-}
-
-export interface ContextStat {
-  contextUri: string;
-  plays: number;
-  listenedMs: number;
-}
-
-export interface DayStat {
-  date: string;
-  plays: number;
-  listenedMs: number;
-}
-
-export interface StatsSummary {
-  since: number | null;
-  playThresholdMs: number;
-  plays: number;
-  listenedMs: number;
-  uniqueTracks: number;
-  uniqueArtists: number;
-  skips: number;
-  firstLoggedAt: number | null;
-  topTracks: TrackStat[];
-  topArtists: ArtistStat[];
-  contexts: ContextStat[];
-  hours: number[];
-  days: DayStat[];
-  mostSkipped: TrackStat[];
-}
-
 export interface DiscoverySource {
   key: string;
   kind: "followed_artist" | "seed_artist" | "seed_playlist" | string;
@@ -440,7 +395,6 @@ export const api = {
     invoke<string | null>("save_text_file", { fileName, content }),
   importSearch: (lines: string[]) => invoke<ImportMatch[]>("import_search", { lines }),
 
-  getStats: (rangeDays: number | null) => invoke<StatsSummary>("get_stats", { rangeDays }),
   setPlayThreshold: (secs: number) => invoke<void>("set_play_threshold", { secs }),
 
   getDiscoveryStatus: () => invoke<DiscoveryStatus>("get_discovery_status"),

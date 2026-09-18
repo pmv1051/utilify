@@ -80,7 +80,6 @@ pub fn run() {
             commands::export_playlist,
             commands::save_text_file,
             commands::import_search,
-            commands::get_stats,
             commands::set_play_threshold,
             commands::get_discovery_status,
             commands::rebuild_library_index,

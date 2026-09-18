@@ -21,7 +21,6 @@ use crate::features::export_import::{self, ExportContent, ImportMatch};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
-use crate::db::stats::StatsSummary;
 use crate::features::stats;
 use crate::features::tracks::{self, TrackInfo};
 use crate::features::{self, bench};
@@ -51,6 +50,8 @@ pub struct Settings {
     pub user_display_name: Option<String>,
     pub user_id: Option<String>,
     pub db_path: String,
+    /// Seconds heard before a play counts (else a skip); used by Discovery outcomes.
+    pub play_threshold_secs: i64,
 }
 
 fn setup_state(state: &AppState) -> Result<SetupState> {
@@ -170,6 +171,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
         user_display_name: display_name,
         user_id: uid,
         db_path: state.db_path.display().to_string(),
+        play_threshold_secs: stats::play_threshold_ms(&state) / 1000,
     })
 }
 
@@ -387,11 +389,6 @@ pub async fn discover(state: State<'_, AppState>, count: usize, mode: String) ->
 }
 
 // ---- stats -----------------------------------------------------------------
-
-#[tauri::command]
-pub fn get_stats(state: State<'_, AppState>, range_days: Option<u32>) -> Result<StatsSummary> {
-    stats::summary(&state, range_days)
-}
 
 #[tauri::command]
 pub fn set_play_threshold(state: State<'_, AppState>, secs: i64) -> Result<()> {
