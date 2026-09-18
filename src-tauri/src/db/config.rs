@@ -8,8 +8,6 @@ pub const USER_ID: &str = "user_id";
 pub const USER_DISPLAY_NAME: &str = "user_display_name";
 pub const USER_PRODUCT: &str = "user_product";
 pub const MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
-/// Seconds a track must be heard before it counts as a play (else a skip).
-pub const PLAY_THRESHOLD_SECS: &str = "play_threshold_secs";
 /// Unix time until which artist-family API calls are paused after QUOTA_EXCEEDED.
 pub const QUOTA_COOLDOWN_UNTIL: &str = "quota_cooldown_until";
 

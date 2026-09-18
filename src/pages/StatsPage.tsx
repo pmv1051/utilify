@@ -17,12 +17,7 @@ export function StatsPage() {
             with the extended streaming history option. It arrives by email, usually within 30 days, as a set of
             JSON files.
           </p>
-          <p className="mt-2 text-sm text-muted">
-            Importing it here will power this page: play counts, listening time per artist and playlist,
-            time-of-day patterns, skip rates, and most played over any range, based on Spotify's own records rather
-            than on what Utilify could observe while running.
-          </p>
-          <p className="mt-3 text-xs text-muted">Not available yet: this page is waiting for a real export file to build against.</p>
+          <p className="mt-3 text-xs text-muted">Not available yet</p>
           <button
             disabled
             className="mt-4 cursor-not-allowed rounded-md border border-line px-3 py-1.5 text-xs text-muted opacity-60"

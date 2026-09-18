@@ -22,7 +22,6 @@ export interface Settings {
   userDisplayName: string | null;
   userId: string | null;
   dbPath: string;
-  playThresholdSecs: number;
 }
 
 export interface Playlist {
@@ -232,74 +231,8 @@ export interface ImportProgress {
   total: number;
 }
 
-export interface DiscoverySource {
-  key: string;
-  kind: "followed_artist" | "seed_artist" | "seed_playlist" | string;
-  label: string;
-  indexedAt: number;
-  trackCount: number;
-}
-
-export interface DiscoveryCandidate {
-  trackUri: string;
-  name: string | null;
-  artists: string | null;
-  album: string | null;
-  sourceKey: string;
-}
-
-export interface DiscoveryLogRow {
-  id: number;
-  trackUri: string;
-  trackName: string | null;
-  artistName: string | null;
-  source: string | null;
-  firstSeenAt: number;
-  status: "queued" | "listened" | "skipped" | string;
-}
-
-export interface LibraryIndexInfo {
-  playlists: number;
-  tracks: number;
-  updatedAt: number | null;
-}
-
-export interface DiscoveryStatus {
-  library: LibraryIndexInfo;
-  poolTotal: number;
-  poolUnseen: number;
-  sources: DiscoverySource[];
-  totals: { offered: number; listened: number; skipped: number; pending: number };
-  recent: DiscoveryLogRow[];
-}
-
-export interface DiscoveryProgress {
-  phase: string;
-  done: number;
-  total: number;
-  label: string;
-}
-
 export interface QuotaStatus {
   cooldownUntil: number | null;
-}
-
-export interface IndexResult {
-  indexed: number;
-  skippedFresh: number;
-  warning: string | null;
-}
-
-export interface DiscoverResult {
-  mode: "queue" | "playlist" | string;
-  offered: DiscoveryCandidate[];
-  playlist: GeneratedPlaylist | null;
-}
-
-export interface PlayFinished {
-  trackUri: string;
-  listenedMs: number;
-  skipped: boolean;
 }
 
 export interface DiscographyResult {
@@ -405,26 +338,7 @@ export const api = {
     invoke<string | null>("save_text_file", { fileName, content }),
   importSearch: (lines: string[]) => invoke<ImportMatch[]>("import_search", { lines }),
 
-  setPlayThreshold: (secs: number) => invoke<void>("set_play_threshold", { secs }),
   getQuotaStatus: () => invoke<QuotaStatus>("get_quota_status"),
   clearQuotaCooldown: () => invoke<void>("clear_quota_cooldown"),
 
-  getDiscoveryStatus: () => invoke<DiscoveryStatus>("get_discovery_status"),
-  rebuildLibraryIndex: () => invoke<LibraryIndexInfo>("rebuild_library_index"),
-  listFollowedArtists: () => invoke<ArtistHit[]>("list_followed_artists"),
-  indexDiscoveryArtists: (artists: { id: string; name: string }[], kind: string, maxReleases: number, force: boolean) =>
-    invoke<IndexResult>("index_discovery_artists", { artists, kind, maxReleases, force }),
-  addSeedPlaylist: (args: {
-    reference: string;
-    includeTracks: boolean;
-    expandArtists: boolean;
-    maxArtists: number;
-    maxReleases: number;
-  }) =>
-    invoke<{ source: DiscoverySource; artistsIndexed: number; artistsTotal: number; warning: string | null }>(
-      "add_seed_playlist",
-      args,
-    ),
-  removeDiscoverySource: (key: string) => invoke<void>("remove_discovery_source", { key }),
-  discover: (count: number, mode: "queue" | "playlist") => invoke<DiscoverResult>("discover", { count, mode }),
 };

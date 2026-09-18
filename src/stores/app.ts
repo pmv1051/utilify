@@ -21,7 +21,6 @@ export type Page =
   | "editor"
   | "exportimport"
   | "stats"
-  | "discovery"
   | "settings";
 
 export interface Toast {

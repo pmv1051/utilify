@@ -13,7 +13,6 @@ import { DiscographyPage } from "./pages/DiscographyPage";
 import { EditorPage } from "./pages/EditorPage";
 import { ExportImportPage } from "./pages/ExportImportPage";
 import { StatsPage } from "./pages/StatsPage";
-import { DiscoveryPage } from "./pages/DiscoveryPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { Sidebar } from "./components/Sidebar";
 import { NowPlaying } from "./components/NowPlaying";
@@ -93,7 +92,6 @@ export default function App() {
           {page === "editor" && <EditorPage />}
           {page === "exportimport" && <ExportImportPage />}
           {page === "stats" && <StatsPage />}
-          {page === "discovery" && <DiscoveryPage />}
           {page === "settings" && <SettingsPage />}
         </main>
         <NowPlaying />

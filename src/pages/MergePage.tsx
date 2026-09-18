@@ -71,10 +71,6 @@ export function MergePage() {
               </Button>
             </div>
           </div>
-          <p className="mt-3 text-xs text-muted">
-            Identical tracks are always merged into one copy. "Randomize order" writes a Fisher-Yates order once; to
-            keep it re-shuffling as you listen, randomize the new playlist from the Playlists tab afterwards.
-          </p>
         </section>
 
         {result && (

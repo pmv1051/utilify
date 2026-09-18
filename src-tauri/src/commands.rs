@@ -13,16 +13,12 @@ use crate::db::{self, config};
 use crate::error::{AppError, Result};
 use crate::features::diff::{self, DiffResult};
 use crate::features::discography::{self, AlbumInfo, ArtistHit, DiscographyResult};
-use crate::features::discovery::{
-    self, ArtistRef, DiscoverResult, DiscoveryStatus, IndexResult, LibraryIndexInfo, SeedPlaylistResult,
-};
 use crate::features::duplicates::{self, DuplicateReport, RemovalRequest, RemovalSummary};
 use crate::features::editor::{self, ApplyResult};
 use crate::features::export_import::{self, ExportContent, ImportMatch};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
-use crate::features::stats;
 use crate::features::tracks::{self, TrackInfo};
 use crate::features::{self, bench};
 use crate::spotify::client::QuotaStatus;
@@ -52,8 +48,6 @@ pub struct Settings {
     pub user_display_name: Option<String>,
     pub user_id: Option<String>,
     pub db_path: String,
-    /// Seconds heard before a play counts (else a skip); used by Discovery outcomes.
-    pub play_threshold_secs: i64,
 }
 
 fn setup_state(state: &AppState) -> Result<SetupState> {
@@ -173,7 +167,6 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings> {
         user_display_name: display_name,
         user_id: uid,
         db_path: state.db_path.display().to_string(),
-        play_threshold_secs: stats::play_threshold_ms(&state) / 1000,
     })
 }
 
@@ -344,67 +337,6 @@ pub async fn save_text_file(app: AppHandle, file_name: String, content: String) 
 #[tauri::command]
 pub async fn import_search(app: AppHandle, state: State<'_, AppState>, lines: Vec<String>) -> Result<Vec<ImportMatch>> {
     export_import::import_search(&app, &state, &lines).await
-}
-
-// ---- discovery -------------------------------------------------------------
-
-#[tauri::command]
-pub fn get_discovery_status(state: State<'_, AppState>) -> Result<DiscoveryStatus> {
-    discovery::status(&state)
-}
-
-#[tauri::command]
-pub async fn rebuild_library_index(app: AppHandle, state: State<'_, AppState>) -> Result<LibraryIndexInfo> {
-    discovery::rebuild_library_index(&app, &state).await
-}
-
-#[tauri::command]
-pub async fn list_followed_artists(state: State<'_, AppState>) -> Result<Vec<ArtistHit>> {
-    discovery::followed_artists(&state).await
-}
-
-#[tauri::command]
-pub async fn index_discovery_artists(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    artists: Vec<ArtistRef>,
-    kind: String,
-    max_releases: usize,
-    force: bool,
-) -> Result<IndexResult> {
-    discovery::index_artists(&app, &state, &artists, &kind, max_releases, force).await
-}
-
-#[tauri::command]
-#[allow(clippy::too_many_arguments)]
-pub async fn add_seed_playlist(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    reference: String,
-    include_tracks: bool,
-    expand_artists: bool,
-    max_artists: usize,
-    max_releases: usize,
-) -> Result<SeedPlaylistResult> {
-    discovery::add_seed_playlist(&app, &state, &reference, include_tracks, expand_artists, max_artists, max_releases)
-        .await
-}
-
-#[tauri::command]
-pub fn remove_discovery_source(state: State<'_, AppState>, key: String) -> Result<()> {
-    discovery::remove_source(&state, &key)
-}
-
-#[tauri::command]
-pub async fn discover(state: State<'_, AppState>, count: usize, mode: String) -> Result<DiscoverResult> {
-    discovery::discover(&state, count, &mode).await
-}
-
-// ---- stats -----------------------------------------------------------------
-
-#[tauri::command]
-pub fn set_play_threshold(state: State<'_, AppState>, secs: i64) -> Result<()> {
-    stats::set_play_threshold(&state, secs)
 }
 
 // ---- quota ----------------------------------------------------------------

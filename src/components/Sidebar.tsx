@@ -29,10 +29,7 @@ const groups: { title: string | null; items: Item[] }[] = [
   },
   {
     title: "Listening",
-    items: [
-      { id: "stats", label: "Stats", icon: "▤" },
-      { id: "discovery", label: "Discovery", icon: "✦" },
-    ],
+    items: [{ id: "stats", label: "Stats", icon: "▤" }],
   },
   {
     title: null,

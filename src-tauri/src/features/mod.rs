@@ -1,7 +1,6 @@
 pub mod bench;
 pub mod diff;
 pub mod discography;
-pub mod discovery;
 pub mod duplicates;
 pub mod editor;
 pub mod export_import;
@@ -9,7 +8,6 @@ pub mod generated;
 pub mod matching;
 pub mod merge;
 pub mod randomizer;
-pub mod stats;
 pub mod tracks;
 
 use crate::db::playlists::PlaylistRow;

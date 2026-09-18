@@ -2,15 +2,15 @@
 //!
 //! Every 30 seconds (never faster, to stay well inside Spotify's rate limits)
 //! it fetches `/me/player`, stores the result, emits `playback-state` to the
-//! frontend and hands the state to each subscriber: playback logging (Stats
-//! and Discovery outcomes), the Randomizer, then Bench restores.
+//! frontend and hands the state to each subscriber: the Randomizer, then
+//! Bench restores.
 
 use std::time::Duration;
 
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::error::AppError;
-use crate::features::{bench, discovery, randomizer, stats};
+use crate::features::{bench, randomizer};
 use crate::spotify::playback;
 use crate::state::AppState;
 
@@ -45,8 +45,6 @@ async fn tick(app: &AppHandle) {
         Ok(current) => {
             let previous = state.set_last_playback(current.clone());
             let _ = app.emit("playback-state", &current);
-            stats::on_tick(app, &state, current.as_ref());
-            discovery::on_poll(&state, previous.as_ref(), current.as_ref());
             randomizer::on_poll(app, &state, previous.as_ref(), current.as_ref()).await;
         }
         Err(AppError::AuthExpired) | Err(AppError::NotAuthenticated) => {
