@@ -253,7 +253,7 @@ function DiffSection({
             </Button>
           ))}
           {naming === null ? (
-            <Button variant="secondary" onClick={() => onNaming("")} disabled={n === 0 || busy !== null}>
+            <Button local variant="secondary" onClick={() => onNaming("")} disabled={n === 0 || busy !== null}>
               New playlist…
             </Button>
           ) : (
@@ -273,7 +273,7 @@ function DiffSection({
               <Button onClick={() => onCreate(naming)} disabled={!naming.trim() || busy !== null}>
                 Create
               </Button>
-              <Button variant="ghost" onClick={() => onNaming(null)}>
+              <Button local variant="ghost" onClick={() => onNaming(null)}>
                 ✕
               </Button>
             </span>

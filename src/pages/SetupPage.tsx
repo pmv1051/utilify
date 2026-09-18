@@ -118,7 +118,7 @@ export function SetupPage() {
                 spellCheck={false}
                 className="flex-1 rounded-md border border-line bg-ink px-3 py-2 font-mono text-sm outline-none focus:border-spotify"
               />
-              <Button onClick={saveClientId} disabled={saving || clientId.trim().length === 0}>
+              <Button local onClick={saveClientId} disabled={saving || clientId.trim().length === 0}>
                 {saving && <Spinner />} Continue
               </Button>
             </div>
@@ -141,7 +141,7 @@ export function SetupPage() {
                   "Connect to Spotify"
                 )}
               </Button>
-              <Button variant="ghost" onClick={changeClientId} disabled={connecting}>
+              <Button local variant="ghost" onClick={changeClientId} disabled={connecting}>
                 Use a different Client ID
               </Button>
             </div>

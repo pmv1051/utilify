@@ -106,6 +106,7 @@ export function PlaylistsPage() {
                     </div>
                   </div>
                   <Button
+                    local
                     variant="ghost"
                     onClick={() => openBenchFor(p.id)}
                     disabled={p.trackCount === 0}

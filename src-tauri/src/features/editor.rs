@@ -44,10 +44,29 @@ pub struct Move {
     pub range_length: usize,
 }
 
+/// Spotify rejects large reorder ranges (live: moving one track to the end of
+/// a long playlist as a 500-item block → 400). Keep every range at most this.
+const MAX_RANGE: usize = 100;
+
+/// Apply a reorder with Spotify's semantics: `insert_before` refers to
+/// positions *before* the range is removed.
+fn apply_move(cur: &mut Vec<usize>, m: &Move) {
+    let block: Vec<usize> = cur.drain(m.range_start..m.range_start + m.range_length).collect();
+    let at = if m.insert_before > m.range_start {
+        m.insert_before - m.range_length
+    } else {
+        m.insert_before
+    };
+    for (k, v) in block.into_iter().enumerate() {
+        cur.insert(at + k, v);
+    }
+}
+
 /// Plan the moves that transform identity order `0..n` into `target` (a
 /// permutation of original positions). Walks left to right; whenever the
-/// item that belongs at `i` is elsewhere, moves it (and the run of items
-/// that follow it in both sequences) into place.
+/// item that belongs at `i` sits at `j > i`, either the block starting at `j`
+/// moves before `i`, or the items in between (the gap) move after the block,
+/// whichever is smaller. Ranges are chunked to `MAX_RANGE`.
 pub fn plan_moves(target: &[usize]) -> Vec<Move> {
     let n = target.len();
     let mut cur: Vec<usize> = (0..n).collect();
@@ -64,17 +83,41 @@ pub fn plan_moves(target: &[usize]) -> Vec<Move> {
         while j + len < n && i + len < n && cur[j + len] == target[i + len] {
             len += 1;
         }
-        moves.push(Move {
-            range_start: j,
-            insert_before: i,
-            range_length: len,
-        });
-        let block: Vec<usize> = cur.drain(j..j + len).collect();
-        for (k, v) in block.into_iter().enumerate() {
-            cur.insert(i + k, v);
+        let gap = j - i;
+        if gap <= len {
+            // Move the gap after the block, in chunks. The block's end index
+            // (pre-removal) shrinks by what has already been moved out.
+            let mut moved = 0;
+            while moved < gap {
+                let chunk = (gap - moved).min(MAX_RANGE);
+                let m = Move {
+                    range_start: i,
+                    insert_before: j + len - moved,
+                    range_length: chunk,
+                };
+                apply_move(&mut cur, &m);
+                moves.push(m);
+                moved += chunk;
+            }
+        } else {
+            // Move the block before i, in chunks. Each chunk inserted before
+            // i shifts the block's remainder right by the chunk size.
+            let mut moved = 0;
+            while moved < len {
+                let chunk = (len - moved).min(MAX_RANGE);
+                let m = Move {
+                    range_start: j + moved,
+                    insert_before: i + moved,
+                    range_length: chunk,
+                };
+                apply_move(&mut cur, &m);
+                moves.push(m);
+                moved += chunk;
+            }
         }
         i += len;
     }
+    debug_assert_eq!(cur, target);
     moves
 }
 
@@ -96,9 +139,10 @@ fn validate_permutation(target: &[usize], n: usize) -> Result<()> {
 
 /// Apply `target` (desired order as a permutation of current positions).
 pub async fn apply_order(app: &AppHandle, state: &AppState, playlist_id: &str, target: &[usize]) -> Result<ApplyResult> {
-    // Verify against the live length so a stale view cannot scramble the list.
-    let live = playlists::get_playlist_entries(&state.spotify, playlist_id).await?;
-    validate_permutation(target, live.len())?;
+    // Verify against the live item count (one request) so a stale view cannot
+    // scramble the list.
+    let live_count = playlists::get_playlist(&state.spotify, playlist_id).await?.track_count() as usize;
+    validate_permutation(target, live_count)?;
 
     let moves = plan_moves(target);
     let total = moves.len();
@@ -127,10 +171,9 @@ mod tests {
     fn simulate(n: usize, moves: &[Move]) -> Vec<usize> {
         let mut cur: Vec<usize> = (0..n).collect();
         for m in moves {
-            let block: Vec<usize> = cur.drain(m.range_start..m.range_start + m.range_length).collect();
-            for (k, v) in block.into_iter().enumerate() {
-                cur.insert(m.insert_before + k, v);
-            }
+            assert!(m.range_length <= MAX_RANGE, "range too large: {m:?}");
+            assert!(m.range_start + m.range_length <= n && m.insert_before <= n, "out of bounds: {m:?}");
+            apply_move(&mut cur, m);
         }
         cur
     }
@@ -149,6 +192,18 @@ mod tests {
     }
 
     #[test]
+    fn move_one_to_bottom_is_one_small_call() {
+        // The live failure: item 0 to the end of a long list must not move
+        // the other n-1 items as a block.
+        let n = 600;
+        let mut target: Vec<usize> = (1..n).collect();
+        target.push(0);
+        let moves = plan_moves(&target);
+        assert_eq!(moves, vec![Move { range_start: 0, insert_before: n, range_length: 1 }]);
+        assert_eq!(simulate(n, &moves), target);
+    }
+
+    #[test]
     fn move_block_to_bottom_is_one_call() {
         let target = vec![0, 3, 4, 1, 2]; // items 1,2 moved to the end
         let moves = plan_moves(&target);
@@ -157,13 +212,32 @@ mod tests {
     }
 
     #[test]
+    fn large_blocks_are_chunked() {
+        // Reverse halves of a 450-item list: a 225-block must move in 100-chunks.
+        let n = 450;
+        let target: Vec<usize> = (225..n).chain(0..225).collect();
+        let moves = plan_moves(&target);
+        assert!(moves.iter().all(|m| m.range_length <= MAX_RANGE));
+        assert_eq!(simulate(n, &moves), target);
+    }
+
+    #[test]
     fn arbitrary_permutations_are_reproduced() {
-        let cases: Vec<Vec<usize>> = vec![
+        let mut cases: Vec<Vec<usize>> = vec![
             vec![2, 0, 1],
             vec![4, 3, 2, 1, 0],
             vec![1, 0, 3, 2, 5, 4],
             vec![5, 1, 4, 0, 3, 2, 6],
         ];
+        // A deterministic pseudo-random shuffle of 300 items.
+        let mut v: Vec<usize> = (0..300).collect();
+        let mut seed = 12345u64;
+        for k in (1..v.len()).rev() {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let r = (seed >> 33) as usize % (k + 1);
+            v.swap(k, r);
+        }
+        cases.push(v);
         for target in cases {
             let moves = plan_moves(&target);
             assert_eq!(simulate(target.len(), &moves), target, "target {target:?}");

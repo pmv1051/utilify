@@ -105,7 +105,7 @@ export function SettingsPage() {
           <Row label="Client ID" value={settings.clientId ?? "—"} mono />
           <Row label="Redirect URI" value={settings.redirectUri} mono />
           <div className="mt-3">
-            <Button variant="danger" onClick={disconnect} disabled={busy}>
+            <Button local variant="danger" onClick={disconnect} disabled={busy}>
               Disconnect
             </Button>
             <span className="ml-3 text-xs text-muted">Removes the stored tokens. Your Client ID is kept.</span>
@@ -113,14 +113,19 @@ export function SettingsPage() {
         </Section>
 
         <Section title="Spotify API quota">
+          <p className="mb-2 text-xs text-muted">
+            Development-mode apps get a small daily budget of API calls shared by every feature. Refreshing large
+            playlists, sorting in the editor and browsing discographies are the expensive operations.
+          </p>
           {cooldown.active ? (
             <div className="text-sm">
-              <div className="text-amber-300">Artist lookups paused for {cooldown.remaining}.</div>
+              <div className="text-amber-300">Spotify calls paused; Utilify retries every 5 minutes (at most {cooldown.remaining}).</div>
               <p className="mt-1 text-xs text-muted">{cooldown.reason}</p>
               <Button
+                local
                 variant="secondary"
                 className="mt-3"
-                title="Only if you know the quota has reset. If it has not, the next artist lookup will fail and re-arm the 24-hour pause."
+                title="Only if you know the quota has reset. If it has not, the next call fails and the pause re-arms."
                 onClick={async () => {
                   try {
                     await api.clearQuotaCooldown();
@@ -136,8 +141,8 @@ export function SettingsPage() {
             </div>
           ) : (
             <p className="text-sm text-muted">
-              No cooldown active. If Spotify reports its quota exhausted, artist and album lookups pause for 24 hours
-              automatically; other features keep working.
+              No pause active. If Spotify reports the app's quota exhausted, Utilify stops calling Spotify, probes
+              every 5 minutes, and resumes by itself when the quota is back.
             </p>
           )}
         </Section>
@@ -173,7 +178,7 @@ export function SettingsPage() {
                 <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded bg-ink p-3 text-xs text-zinc-300">{availableUpdate.notes}</pre>
               )}
               <div className="mt-3 flex items-center gap-3">
-                <Button onClick={installUpdate} disabled={installing} title="Downloads the update, installs it and restarts Utilify">
+                <Button local onClick={installUpdate} disabled={installing} title="Downloads the update, installs it and restarts Utilify">
                   {installing ? <Spinner /> : "Install and restart"}
                 </Button>
                 {installing && (
@@ -189,7 +194,7 @@ export function SettingsPage() {
             </div>
           ) : (
             <div className="mt-2 flex items-center gap-3">
-              <Button variant="secondary" onClick={checkUpdate} disabled={checking}>
+              <Button local variant="secondary" onClick={checkUpdate} disabled={checking}>
                 {checking ? <Spinner /> : "Check for updates"}
               </Button>
               <span className="text-xs text-muted">

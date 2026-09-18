@@ -3,6 +3,7 @@ import { api, errorMessage, type PlayerAction } from "../lib/api";
 import { useApp } from "../stores/app";
 import { artistNames, formatDuration, formatUntil } from "../lib/format";
 import { BENCH_PRESETS, playlistIdFromContext } from "../lib/bench";
+import { useQuotaCooldown } from "../lib/quota";
 import { Spinner } from "./Spinner";
 
 const MIN_HEIGHT = 80;
@@ -34,8 +35,14 @@ export function NowPlaying() {
   const setPage = useApp((s) => s.setPage);
   const toast = useApp((s) => s.toast);
   const setup = useApp((s) => s.setup);
+  const cooldown = useQuotaCooldown();
   const premium = setup?.userProduct === "premium" || !setup?.userProduct;
-  const premiumTitle = premium ? undefined : "Spotify Premium is required to control playback.";
+  const premiumTitle = cooldown.active
+    ? cooldown.reason
+    : premium
+      ? undefined
+      : "Spotify Premium is required to control playback.";
+  const controlsBlocked = !premium || cooldown.active;
 
   // ---- resizable height ----
   const [height, setHeight] = useState(loadHeight);
@@ -98,8 +105,8 @@ export function NowPlaying() {
   const [benchOpen, setBenchOpen] = useState(false);
 
   async function cmd(action: PlayerAction, value?: string) {
-    if (!premium) {
-      toast("error", "Spotify Premium is required to control playback.");
+    if (controlsBlocked) {
+      toast("error", premiumTitle ?? "Playback control is unavailable right now.");
       return;
     }
     setBusy(action);
@@ -233,19 +240,19 @@ export function NowPlaying() {
           {/* Row 2: transport + actions */}
           {tier >= 1 && (
             <div className="flex items-center gap-2 px-5 pb-3">
-              <IconButton title={premiumTitle ?? "Previous"} onClick={() => cmd("previous")} busy={busy === "previous"} disabled={!premium}>
+              <IconButton title={premiumTitle ?? "Previous"} onClick={() => cmd("previous")} busy={busy === "previous"} disabled={controlsBlocked}>
                 ⏮
               </IconButton>
               <IconButton
                 title={premiumTitle ?? (playback?.isPlaying ? "Pause" : "Play")}
                 onClick={() => cmd(playback?.isPlaying ? "pause" : "play")}
                 busy={busy === "play" || busy === "pause"}
-                disabled={!premium}
+                disabled={controlsBlocked}
                 primary
               >
                 {playback?.isPlaying ? "⏸" : "▶"}
               </IconButton>
-              <IconButton title={premiumTitle ?? "Next"} onClick={() => cmd("next")} busy={busy === "next"} disabled={!premium}>
+              <IconButton title={premiumTitle ?? "Next"} onClick={() => cmd("next")} busy={busy === "next"} disabled={controlsBlocked}>
                 ⏭
               </IconButton>
 
@@ -267,17 +274,17 @@ export function NowPlaying() {
 
               <div className="relative ml-auto flex items-center gap-2">
                 <button
-                  disabled={!contextPlaylistId || busy !== null}
+                  disabled={!contextPlaylistId || busy !== null || cooldown.active}
                   onClick={() => setBenchOpen((o) => !o)}
-                  title={contextPlaylistId ? "Bench this track from the playlist it is playing from" : "Play from a playlist to bench"}
+                  title={cooldown.active ? cooldown.reason : contextPlaylistId ? "Bench this track from the playlist it is playing from" : "Play from a playlist to bench"}
                   className="rounded-md border border-line bg-panel-2 px-3 py-1.5 text-xs text-zinc-100 hover:bg-line disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busy === "bench" ? <Spinner /> : "⏸ Bench ▾"}
                 </button>
                 <button
-                  disabled={!contextPlaylistId || busy !== null}
+                  disabled={!contextPlaylistId || busy !== null || cooldown.active}
                   onClick={randomizeCurrent}
-                  title={session ? "Re-shuffle this randomized playlist now" : "Randomize the playlist that is playing"}
+                  title={cooldown.active ? cooldown.reason : session ? "Re-shuffle this randomized playlist now" : "Randomize the playlist that is playing"}
                   className="rounded-md bg-spotify px-3 py-1.5 text-xs font-semibold text-black hover:bg-spotify-dark disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busy === "randomize" ? <Spinner /> : session ? "⇄ Re-shuffle" : "⇄ Randomize playlist"}

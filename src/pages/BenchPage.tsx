@@ -239,7 +239,7 @@ export function BenchPage() {
                 <span className="text-xs text-muted">
                   Returns {formatUntil(Math.floor(Date.now() / 1000) + (durationValid ? durationSecs : 0))}
                 </span>
-                <Button variant="ghost" onClick={() => setSelected(null)} disabled={busy}>
+                <Button local variant="ghost" onClick={() => setSelected(null)} disabled={busy}>
                   Cancel
                 </Button>
               </div>

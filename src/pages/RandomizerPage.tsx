@@ -80,7 +80,7 @@ export function RandomizerPage() {
         {sessions.length === 0 ? (
           <div className="rounded-lg border border-dashed border-line p-8 text-center text-muted">
             <p className="mb-3">No randomized playlists yet.</p>
-            <Button variant="secondary" onClick={() => setPage("playlists")}>
+            <Button local variant="secondary" onClick={() => setPage("playlists")}>
               Pick a playlist
             </Button>
           </div>
@@ -130,7 +130,7 @@ export function RandomizerPage() {
                       <Button variant="secondary" onClick={() => reshuffle(s)} disabled={busy !== null} title="Re-shuffle without changing playback">
                         Re-shuffle
                       </Button>
-                      <Button variant="ghost" onClick={() => stop(s)} disabled={busy !== null}>
+                      <Button local variant="ghost" onClick={() => stop(s)} disabled={busy !== null}>
                         Stop
                       </Button>
                     </div>

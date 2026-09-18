@@ -131,7 +131,13 @@ export function EditorPage() {
     try {
       const r = await api.applyPlaylistOrder(playlistId, target);
       toast("success", `${label}: ${r.moves} reorder call${r.moves === 1 ? "" : "s"}.`);
-      await load(playlistId);
+      // The backend applied exactly this order; mirror it locally instead of
+      // re-reading the playlist (one request per 50 tracks).
+      setTracks((prev) => {
+        const byPos = new Map(prev.map((t) => [t.position, t]));
+        return target.map((p, i) => ({ ...byPos.get(p)!, position: i }));
+      });
+      setSelected(new Set());
       await refreshPlaylists(false);
     } catch (e) {
       toast("error", errorMessage(e));

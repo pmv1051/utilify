@@ -18,6 +18,8 @@ pub struct AppState {
     pub offline_since: Mutex<Option<i64>>,
     /// Update found by the last check, ready to install.
     pub pending_update: Mutex<Option<tauri_plugin_updater::Update>>,
+    /// Last time the poller probed Spotify during a quota pause.
+    pub last_quota_probe: Mutex<i64>,
     /// Signal the polling loop to run immediately (e.g. right after a randomize).
     pub poll_now: Notify,
 }
@@ -31,6 +33,7 @@ impl AppState {
             last_playback: Mutex::new(None),
             offline_since: Mutex::new(None),
             pending_update: Mutex::new(None),
+            last_quota_probe: Mutex::new(0),
             poll_now: Notify::new(),
         }
     }

@@ -28,7 +28,6 @@ pub async fn list_user_playlists(c: &SpotifyClient) -> Result<Vec<SimplifiedPlay
     Ok(items.into_iter().flatten().collect())
 }
 
-#[allow(dead_code)]
 pub async fn get_playlist(c: &SpotifyClient, id: &str) -> Result<SimplifiedPlaylist> {
     c.get(&format!("/playlists/{id}"), &[])
         .await?

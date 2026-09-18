@@ -43,10 +43,23 @@ pub fn start(app: AppHandle) {
     });
 }
 
+/// While the API quota is exhausted, poll only this often; the first
+/// successful poll ends the pause.
+const QUOTA_PROBE_INTERVAL_SECS: i64 = 5 * 60;
+
 async fn tick(app: &AppHandle) {
     let state = app.state::<AppState>();
     if !state.spotify.is_authenticated() {
         return;
+    }
+    if state.spotify.quota_status().cooldown_until.is_some() {
+        let now = crate::db::now();
+        let mut last = state.last_quota_probe.lock().unwrap_or_else(|e| e.into_inner());
+        if now - *last < QUOTA_PROBE_INTERVAL_SECS {
+            return;
+        }
+        *last = now;
+        log::debug!("polling: quota probe");
     }
     match playback::get_playback_state(&state.spotify).await {
         Ok(current) => {
@@ -70,6 +83,10 @@ async fn tick(app: &AppHandle) {
                 let _ = app.emit("connectivity", Connectivity { online: false, since: Some(now) });
             }
             // No point running scheduled work without connectivity.
+            return;
+        }
+        Err(AppError::QuotaExceeded) | Err(AppError::QuotaCooldown { .. }) => {
+            log::debug!("polling: quota still exhausted");
             return;
         }
         Err(e) => log::warn!("polling: playback fetch failed: {e}"),

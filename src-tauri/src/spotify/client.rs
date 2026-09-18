@@ -25,7 +25,10 @@ const MAX_ATTEMPTS: u32 = 5;
 const MAX_RETRY_AFTER_SECS: u64 = 60;
 /// Refresh the access token this many seconds before it actually expires.
 const REFRESH_LEEWAY_SECS: i64 = 60;
-/// After `QUOTA_EXCEEDED`, artist-family calls are refused locally for this long.
+/// Ceiling for a quota pause. Spotify's Development Mode quota is global to
+/// the app (live 2026-09-18: `/playlists/*/items` and `/me/playlists` 429d
+/// too) and recovers on its own, usually within hours; the polling loop probes
+/// every few minutes and the first successful call ends the pause early.
 pub const QUOTA_COOLDOWN_SECS: i64 = 24 * 3600;
 
 /// Where cooldown changes are broadcast to the UI (`quota-cooldown` event).
@@ -35,11 +38,11 @@ pub fn set_event_sink(app: tauri::AppHandle) {
     let _ = EVENT_SINK.set(app);
 }
 
-/// Endpoints that burned the quota on live runs; paused during a cooldown so
-/// the app stops making it worse. Playlist/playback endpoints stay open.
-fn is_gated_path(path: &str) -> bool {
-    let p = path.strip_prefix(API_BASE).unwrap_or(path);
-    p.starts_with("/artists/") || p.starts_with("/albums/") || p.starts_with("/me/following")
+/// The one call allowed during a pause: the player poll, which the polling
+/// loop throttles to a probe cadence while paused.
+fn is_probe(method: &Method, url: &str) -> bool {
+    let p = url.strip_prefix(API_BASE).unwrap_or(url);
+    *method == Method::GET && (p == "/me/player" || p.starts_with("/me/player?"))
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -181,6 +184,9 @@ impl SpotifyClient {
     }
 
     fn start_quota_cooldown(&self) {
+        if self.quota_status().cooldown_until.is_some() {
+            return; // already paused; keep the original deadline
+        }
         let until = now() + QUOTA_COOLDOWN_SECS;
         if let Err(e) = self
             .db
@@ -188,9 +194,17 @@ impl SpotifyClient {
         {
             log::warn!("could not record quota cooldown: {e}");
         }
-        log::warn!("QUOTA_EXCEEDED: artist-family API calls paused until {until}");
+        log::warn!("QUOTA_EXCEEDED: Spotify API calls paused (probing every few minutes, ceiling {until})");
         if let Some(app) = EVENT_SINK.get() {
             let _ = tauri::Emitter::emit(app, "quota-cooldown", QuotaStatus { cooldown_until: Some(until) });
+        }
+    }
+
+    /// A successful call proves the quota is back: end the pause.
+    fn end_quota_cooldown_if_active(&self) {
+        if self.quota_status().cooldown_until.is_some() {
+            log::info!("quota recovered: Spotify answered normally again");
+            let _ = self.clear_quota_cooldown();
         }
     }
 
@@ -362,7 +376,7 @@ impl SpotifyClient {
         query: &[(&str, String)],
         body: Option<&Value>,
     ) -> Result<Option<String>> {
-        if is_gated_path(url) {
+        if !is_probe(&method, url) {
             if let Some(until) = self.quota_status().cooldown_until {
                 return Err(AppError::QuotaCooldown { until });
             }
@@ -400,6 +414,7 @@ impl SpotifyClient {
             let text = resp.text().await.unwrap_or_default();
 
             if status.is_success() {
+                self.end_quota_cooldown_if_active();
                 if status == StatusCode::NO_CONTENT || text.trim().is_empty() {
                     return Ok(None);
                 }
