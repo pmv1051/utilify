@@ -407,7 +407,7 @@ pub async fn create_discography(
     state: State<'_, AppState>,
     artist_id: String,
     artist_name: String,
-    album_ids: Vec<String>,
+    albums: Vec<discography::AlbumRef>,
     name: String,
     only_this_artist: bool,
     dedupe_by_name: bool,
@@ -418,7 +418,7 @@ pub async fn create_discography(
         discography::BuildRequest {
             artist_id: &artist_id,
             artist_name: &artist_name,
-            album_ids: &album_ids,
+            albums: &albums,
             name: &name,
             only_this_artist,
             dedupe_by_name,

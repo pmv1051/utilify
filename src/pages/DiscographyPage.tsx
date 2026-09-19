@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { api, errorMessage, type AlbumInfo, type ArtistHit, type DiscographyResult } from "../lib/api";
+import {
+  api,
+  errorMessage,
+  type AlbumInfo,
+  type ArtistHit,
+  type DiscographyResult,
+  type SkippedTrack,
+} from "../lib/api";
 import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
 import { Spinner } from "../components/Spinner";
@@ -162,7 +169,7 @@ export function DiscographyPage() {
       const r = await api.createDiscography({
         artistId: artist.id,
         artistName: artist.name,
-        albumIds: albums.filter((a) => chosen.has(a.id)).map((a) => a.id),
+        albums: albums.filter((a) => chosen.has(a.id)).map((a) => ({ id: a.id, name: a.name })),
         name,
         onlyThisArtist,
         dedupeByName,
@@ -361,12 +368,80 @@ export function DiscographyPage() {
               {result.playlist.trackCount} tracks from {result.albums} releases · {result.tracksSeen} scanned ·{" "}
               {result.duplicatesSkipped} duplicate{result.duplicatesSkipped === 1 ? "" : "s"} skipped
               {result.otherArtistSkipped > 0 && ` · ${result.otherArtistSkipped} by other artists skipped`}
+              {result.unplayableSkipped > 0 && ` · ${result.unplayableSkipped} unplayable`}
               {result.playlist.trackCount < result.playlist.requested &&
                 ` · ${result.playlist.requested - result.playlist.trackCount} not accepted by Spotify`}
             </div>
+            <SkippedTracks skipped={result.skipped} />
           </section>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Order the reasons so the surprising one is read first. */
+const REASON_RANK: Record<SkippedTrack["reason"], number> = {
+  "same-title": 0,
+  "same-recording": 1,
+  "other-artist": 2,
+  unplayable: 3,
+};
+
+function reasonText(s: SkippedTrack): string {
+  switch (s.reason) {
+    case "same-title":
+      return s.keptFrom ? `same title as the copy on "${s.keptFrom}"` : "same title as an earlier release";
+    case "same-recording":
+      return s.keptFrom ? `already added from "${s.keptFrom}"` : "already added";
+    case "other-artist":
+      return "not credited to this artist";
+    default:
+      return "not playable from Spotify's catalogue";
+  }
+}
+
+/**
+ * Names the tracks that were read but left out. Without this the result only
+ * said how many went missing, so a song vanishing from a discography could
+ * not be explained without rebuilding with the options changed.
+ */
+function SkippedTracks({ skipped }: { skipped: SkippedTrack[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (skipped.length === 0) return null;
+
+  const sorted = [...skipped].sort((a, b) => REASON_RANK[a.reason] - REASON_RANK[b.reason]);
+  const shown = expanded ? sorted : sorted.slice(0, 5);
+  const byTitle = sorted.some((s) => s.reason === "same-title");
+
+  return (
+    <div className="mt-3 border-t border-line pt-3">
+      <div className="text-xs font-medium text-zinc-300">Left out</div>
+      <ul className="mt-1.5 max-h-64 space-y-1 overflow-auto text-xs">
+        {shown.map((s, i) => (
+          <li key={`${s.release}|${s.name}|${i}`} className="flex flex-wrap items-baseline gap-x-2">
+            <span className="text-zinc-100">{s.name}</span>
+            <span className="text-muted">{s.artists}</span>
+            <span className="text-muted">· from "{s.release}"</span>
+            <span className="text-muted">· {reasonText(s)}</span>
+          </li>
+        ))}
+      </ul>
+      {sorted.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-1.5 text-xs text-muted underline-offset-2 hover:text-zinc-200 hover:underline"
+        >
+          {expanded ? "Show fewer" : `Show all ${sorted.length}`}
+        </button>
+      )}
+      {byTitle && (
+        <p className="mt-2 text-xs text-muted">
+          Releases are read oldest first and the first copy of a title wins, so a newer single loses to an older
+          version. Untick "Skip same title across editions" to keep every copy.
+        </p>
+      )}
     </div>
   );
 }

@@ -254,12 +254,25 @@ export interface QuotaStatus {
   cooldownUntil: number | null;
 }
 
+export interface SkippedTrack {
+  name: string;
+  artists: string;
+  /** Release this copy came from. */
+  release: string;
+  reason: "same-title" | "same-recording" | "other-artist" | "unplayable";
+  /** Release whose copy was kept instead, for the two duplicate reasons. */
+  keptFrom: string | null;
+}
+
 export interface DiscographyResult {
   playlist: GeneratedPlaylist;
   albums: number;
   tracksSeen: number;
   duplicatesSkipped: number;
   otherArtistSkipped: number;
+  unplayableSkipped: number;
+  /** Capped list of what was left out; the counts above are exact. */
+  skipped: SkippedTrack[];
 }
 
 export interface BenchRow {
@@ -427,7 +440,7 @@ export const api = {
   createDiscography: (args: {
     artistId: string;
     artistName: string;
-    albumIds: string[];
+    albums: { id: string; name: string }[];
     name: string;
     onlyThisArtist: boolean;
     dedupeByName: boolean;
