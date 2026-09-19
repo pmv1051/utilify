@@ -19,6 +19,7 @@ use crate::features::export_import::{self, ExportContent, ImportMatch};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::merge::{self, MergeResult};
 use crate::features::randomizer::{self, RandomizeResult};
+use crate::features::stats::{self, ImportSummary, StatsSummary};
 use crate::features::tracks::{self, TrackInfo};
 use crate::features::updater::{self, UpdateInfo};
 use crate::features::{self, bench};
@@ -530,4 +531,35 @@ pub async fn get_playback_state(state: State<'_, AppState>, refresh: bool) -> Re
     } else {
         Ok(state.last_playback())
     }
+}
+
+// ---- stats (all local: the data export, never the Web API) ------------------
+
+/// Pick a Spotify data export and store its track plays. `None` = cancelled.
+#[tauri::command]
+pub async fn import_streaming_history(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<ImportSummary>> {
+    stats::import(&app, &state.db).await
+}
+
+#[tauri::command]
+pub fn get_stats_status(state: State<'_, AppState>) -> Result<crate::db::stats::StatsStatus> {
+    stats::status(&state.db)
+}
+
+#[tauri::command]
+pub fn get_stats(
+    state: State<'_, AppState>,
+    from: Option<i64>,
+    to: Option<i64>,
+    threshold_secs: i64,
+) -> Result<StatsSummary> {
+    stats::summary(&state.db, from, to, threshold_secs)
+}
+
+#[tauri::command]
+pub fn clear_streaming_history(state: State<'_, AppState>) -> Result<()> {
+    stats::clear(&state.db)
 }

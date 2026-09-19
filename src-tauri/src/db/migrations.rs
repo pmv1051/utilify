@@ -144,6 +144,39 @@ const MIGRATIONS: &[&str] = &[
         track_order TEXT NOT NULL
     );
     "#,
+    // v6: Stats. Every track play from Spotify's "extended streaming history"
+    // data export. The primary key makes re-importing the same export (or a
+    // newer one that overlaps) a no-op, so imports are additive and safe to
+    // repeat. `ip_addr` from the export is deliberately not stored.
+    r#"
+    CREATE TABLE IF NOT EXISTS stream_history (
+        ts           INTEGER NOT NULL,
+        track_uri    TEXT NOT NULL,
+        ms_played    INTEGER NOT NULL,
+        track_name   TEXT,
+        artist_name  TEXT,
+        album_name   TEXT,
+        reason_start TEXT,
+        reason_end   TEXT,
+        shuffle      INTEGER,
+        skipped      INTEGER,
+        platform     TEXT,
+        country      TEXT,
+        offline      INTEGER,
+        incognito    INTEGER,
+        PRIMARY KEY (ts, track_uri, ms_played)
+    ) WITHOUT ROWID;
+    CREATE INDEX IF NOT EXISTS idx_stream_ts ON stream_history(ts);
+
+    CREATE TABLE IF NOT EXISTS stream_imports (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        imported_at INTEGER NOT NULL,
+        source      TEXT NOT NULL,
+        files       INTEGER NOT NULL,
+        rows_read   INTEGER NOT NULL,
+        rows_added  INTEGER NOT NULL
+    );
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {

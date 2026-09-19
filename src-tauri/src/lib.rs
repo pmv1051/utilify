@@ -88,6 +88,10 @@ pub fn run() {
             commands::check_for_update,
             commands::install_update,
             commands::set_update_check_enabled,
+            commands::import_streaming_history,
+            commands::get_stats_status,
+            commands::get_stats,
+            commands::clear_streaming_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

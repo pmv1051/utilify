@@ -282,6 +282,93 @@ export function errorMessage(e: unknown): string {
 
 // ---- Commands ----
 
+// ---- Stats (Spotify data export; no Web API calls) ----
+
+export interface StatsImport {
+  importedAt: number;
+  source: string;
+  rowsAdded: number;
+}
+
+export interface StatsStatus {
+  plays: number;
+  firstTs: number | null;
+  lastTs: number | null;
+  /** Years present in the history, newest first. */
+  years: number[];
+  lastImport: StatsImport | null;
+}
+
+export interface StatsTotals {
+  streams: number;
+  plays: number;
+  skips: number;
+  ms: number;
+  shuffleStreams: number;
+  songs: number;
+  artists: number;
+  albums: number;
+  days: number;
+  firstTs: number | null;
+  lastTs: number | null;
+}
+
+export interface SongStat {
+  name: string;
+  artist: string;
+  uri: string | null;
+  plays: number;
+  skips: number;
+  ms: number;
+}
+
+export interface NamedStat {
+  name: string;
+  /** Artist, on album rows. */
+  secondary: string;
+  plays: number;
+  ms: number;
+  songs: number;
+}
+
+export interface StatsBucket {
+  label: string;
+  plays: number;
+  ms: number;
+}
+
+export interface StatsSummary {
+  from: number;
+  to: number;
+  thresholdMs: number;
+  status: StatsStatus;
+  totals: StatsTotals;
+  topSongs: SongStat[];
+  topArtists: NamedStat[];
+  topAlbums: NamedStat[];
+  mostSkipped: SongStat[];
+  byHour: StatsBucket[];
+  byWeekday: StatsBucket[];
+  byMonth: StatsBucket[];
+  byPlatform: StatsBucket[];
+}
+
+export interface StatsImportSummary {
+  source: string;
+  files: number;
+  playsRead: number;
+  playsAdded: number;
+  otherRows: number;
+  ignoredFiles: string[];
+}
+
+export interface StatsImportProgress {
+  file: string;
+  done: number;
+  total: number;
+  plays: number;
+}
+
 export const api = {
   getSetupState: () => invoke<SetupState>("get_setup_state"),
   saveClientId: (clientId: string) => invoke<void>("save_client_id", { clientId }),
@@ -363,5 +450,11 @@ export const api = {
   checkForUpdate: () => invoke<UpdateInfo | null>("check_for_update"),
   installUpdate: () => invoke<void>("install_update"),
   setUpdateCheckEnabled: (enabled: boolean) => invoke<void>("set_update_check_enabled", { enabled }),
+
+  importStreamingHistory: () => invoke<StatsImportSummary | null>("import_streaming_history"),
+  getStatsStatus: () => invoke<StatsStatus>("get_stats_status"),
+  getStats: (from: number | null, to: number | null, thresholdSecs: number) =>
+    invoke<StatsSummary>("get_stats", { from, to, thresholdSecs }),
+  clearStreamingHistory: () => invoke<void>("clear_streaming_history"),
 
 };

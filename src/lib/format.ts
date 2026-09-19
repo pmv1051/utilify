@@ -49,3 +49,44 @@ export function artistNames(artists: { name: string }[] | undefined): string {
   if (!artists || artists.length === 0) return "";
   return artists.map((a) => a.name).join(", ");
 }
+
+/** "1,811 h" for long spans, "3 h 12 min" below a hundred hours. */
+export function formatListeningLong(ms: number): string {
+  const hours = ms / 3600000;
+  if (hours >= 100) return `${Math.round(hours).toLocaleString()} h`;
+  return formatListening(ms);
+}
+
+/** Hours only, for axis ticks: "0", "12", "1.5k". */
+export function formatHoursShort(ms: number): string {
+  const hours = ms / 3600000;
+  if (hours >= 1000) return `${(hours / 1000).toFixed(1)}k`;
+  if (hours >= 10) return Math.round(hours).toString();
+  if (hours >= 1) return hours.toFixed(1);
+  if (hours === 0) return "0";
+  return `${Math.round(hours * 60)}m`;
+}
+
+export function formatCount(n: number): string {
+  return n.toLocaleString();
+}
+
+/** "Jan 2024" from the export's "2024-01" bucket label. */
+export function formatMonthLabel(label: string): string {
+  const [y, m] = label.split("-").map(Number);
+  if (!y || !m) return label;
+  return new Date(y, m - 1, 1).toLocaleString(undefined, { month: "short", year: "numeric" });
+}
+
+export function formatDate(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** "1 play", "2,453 plays". */
+export function plural(n: number, singular: string, many?: string): string {
+  return `${formatCount(n)} ${n === 1 ? singular : (many ?? `${singular}s`)}`;
+}

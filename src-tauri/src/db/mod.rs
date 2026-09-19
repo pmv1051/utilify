@@ -3,6 +3,7 @@ pub mod config;
 pub mod migrations;
 pub mod playlists;
 pub mod randomizer;
+pub mod stats;
 
 use std::path::Path;
 use std::sync::{Arc, Mutex};

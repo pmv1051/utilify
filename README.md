@@ -10,6 +10,8 @@ Desktop utilities for Spotify playlists.
 - **Discography** — search an artist, tick the releases you want, get a playlist of their catalogue without duplicates across editions.
 - **Editor** — move tracks to the top, bottom, or after another track, bulk move, sort by artist, album, title, date added or duration. Keeps "date added" intact.
 - **Export / Import** — CSV or `Artist — Track` text out; paste a list in and match it back to Spotify with fuzzy matching you can correct.
+- **Stats** — import Spotify's data export and see your whole listening history: time of day, weekday and
+  monthly patterns, most played songs, artists and albums, what you skip past, and which devices you use.
 - **Now Playing bar** — resizable; transport controls, seek, bench the playing track, re-shuffle the playing playlist.
 
 Utilify runs entirely on your computer. Nothing is sent anywhere except Spotify's API.
@@ -52,7 +54,11 @@ Closing the window keeps Utilify in the system tray so automatic re-shuffles and
 - **Playback is checked every 30 seconds** to stay within Spotify's rate limits. Re-shuffles and restores happen on the next check, so expect up to half a minute of delay.
 - **Development Mode limits.** Spotify caps some listing endpoints and forbids others for apps like this one: liked-song lookups, batch artist lookups, artist genre tags, and reading playlists you don't own all fail. Utilify only offers what works.
 - **API quota.** Heavy artist/album browsing (Discography) can exhaust your app's daily quota. When Spotify reports that, Utilify pauses those calls for 24 hours and shows a countdown; everything else keeps working.
-- **Stats** will be built from Spotify's own data export (Account → Privacy → Download your data), not from polling. That page is a placeholder until the importer exists.
+- **Stats come from your data export**, not from the API: Spotify has no history endpoint. Request
+  *Extended streaming history* at Account → Privacy settings → Download your data, then import the zip on
+  the Stats page. It is stored in Utilify's local database, and the IP addresses in the export are not read.
+  Importing the same export twice changes nothing, so a newer export just adds the plays since the last one.
+- **The export has no playlist information**, so listening per playlist cannot be shown.
 
 ## Build from source
 

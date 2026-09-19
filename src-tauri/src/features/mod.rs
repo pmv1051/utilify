@@ -8,6 +8,7 @@ pub mod generated;
 pub mod matching;
 pub mod merge;
 pub mod randomizer;
+pub mod stats;
 pub mod tracks;
 pub mod updater;
 
