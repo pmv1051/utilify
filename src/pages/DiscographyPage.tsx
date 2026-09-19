@@ -14,6 +14,16 @@ const GROUP_LABEL: Record<string, string> = {
 };
 const GROUP_ORDER = ["album", "single", "compilation", "appears_on"];
 
+/**
+ * "Appears on" is switched off for now. Unlike compilations, which ride along
+ * in the listing Utilify already makes, it needs its own paged listing of
+ * every release by other artists that credits this one, and then one listing
+ * per release you pick. At ten items per page in Development Mode that is the
+ * fastest way to exhaust the app's API quota.
+ */
+const APPEARS_ON_REASON =
+  'Turned off for now. Burns through Spotify\'s API quota quickly';
+
 export function DiscographyPage() {
   const toast = useApp((s) => s.toast);
   const refreshPlaylists = useApp((s) => s.refreshPlaylists);
@@ -241,15 +251,26 @@ export function DiscographyPage() {
                 <input type="checkbox" checked={includeCompilations} onChange={(e) => setIncludeCompilations(e.target.checked)} />
                 Include compilations
               </label>
-              <label className="flex items-center gap-2 text-sm text-zinc-300">
-                <input type="checkbox" checked={includeAppearsOn} onChange={(e) => setIncludeAppearsOn(e.target.checked)} />
+              <label
+                className="flex cursor-not-allowed items-center gap-2 text-sm text-muted"
+                title={APPEARS_ON_REASON}
+              >
+                <input
+                  type="checkbox"
+                  checked={includeAppearsOn}
+                  onChange={(e) => setIncludeAppearsOn(e.target.checked)}
+                  disabled
+                  className="cursor-not-allowed"
+                />
                 Include "appears on"
+                <span className="text-xs">(disabled)</span>
                 {loadingAlbums && base.length > 0 && <Spinner />}
               </label>
               <span className="ml-auto text-xs text-muted">
                 {chosen.size} of {albums.length} releases · about {chosenTracks} tracks before deduplication
               </span>
             </div>
+            <p className="mb-3 text-xs text-muted">{APPEARS_ON_REASON}</p>
             {loadingAlbums && base.length === 0 ? (
               <div className="flex items-center gap-2 text-sm text-muted">
                 <Spinner /> Loading releases…
