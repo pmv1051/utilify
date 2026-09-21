@@ -17,6 +17,14 @@ jobs:
   build:
     strategy:
       fail-fast: false
+      # One at a time. Every job writes the same `latest.json` to the same
+      # draft release, and tauri-action deletes the existing asset before
+      # uploading its own. Two jobs finishing together race on that delete and
+      # the loser fails with "Not Found" (seen on v0.2.2: the Intel macOS job
+      # died after uploading its dmg, so `latest.json` had no darwin-x86_64
+      # entry and the version-free copy was never made). A release takes four
+      # times as long this way and is worth it.
+      max-parallel: 1
       matrix:
         include:
           # Both macOS builds run on the Apple Silicon runner; the Intel one
