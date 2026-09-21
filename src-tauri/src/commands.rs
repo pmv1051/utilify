@@ -397,8 +397,20 @@ pub async fn get_artist_albums(
     state: State<'_, AppState>,
     artist_id: String,
     groups: Vec<String>,
+    refresh: bool,
 ) -> Result<Vec<AlbumInfo>> {
-    discography::albums(&state, &artist_id, &groups).await
+    discography::albums(&state, &artist_id, &groups, refresh).await
+}
+
+/// How much room the discography cache uses, for Settings.
+#[tauri::command]
+pub fn get_discography_cache_size(state: State<'_, AppState>) -> Result<crate::db::discography::CacheSize> {
+    state.db.with(crate::db::discography::size)
+}
+
+#[tauri::command]
+pub fn clear_discography_cache(state: State<'_, AppState>) -> Result<()> {
+    state.db.with(crate::db::discography::clear)
 }
 
 #[tauri::command]

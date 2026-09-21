@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { api, errorMessage, type UpdateProgress } from "../lib/api";
+import { api, errorMessage, type DiscographyCacheSize, type UpdateProgress } from "../lib/api";
 import { useApp } from "../stores/app";
 import { Button } from "../components/Button";
 import { Spinner } from "../components/Spinner";
-import { useQuotaCooldown } from "../lib/quota";
+import { SCOPE_LABEL, usePausedScopes } from "../lib/quota";
+import { formatBytes } from "../lib/format";
 
 export function SettingsPage() {
   const settings = useApp((s) => s.settings);
@@ -12,7 +13,7 @@ export function SettingsPage() {
   const refreshQuota = useApp((s) => s.refreshQuota);
   const setSetup = useApp((s) => s.setSetup);
   const toast = useApp((s) => s.toast);
-  const cooldown = useQuotaCooldown();
+  const paused = usePausedScopes();
   const availableUpdate = useApp((s) => s.availableUpdate);
   const setAvailableUpdate = useApp((s) => s.setAvailableUpdate);
   const [busy, setBusy] = useState(false);
@@ -20,6 +21,11 @@ export function SettingsPage() {
   const [installing, setInstalling] = useState(false);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
   const [checkedOnce, setCheckedOnce] = useState(false);
+  const [cache, setCache] = useState<DiscographyCacheSize | null>(null);
+
+  useEffect(() => {
+    api.getDiscographyCacheSize().then(setCache).catch(() => setCache(null));
+  }, []);
 
   useEffect(() => {
     const un = listen<UpdateProgress>("update-progress", (e) => setProgress(e.payload));
@@ -114,37 +120,73 @@ export function SettingsPage() {
 
         <Section title="Spotify API quota">
           <p className="mb-2 text-xs text-muted">
-            Development-mode apps get a small daily budget of API calls shared by every feature. Refreshing large
-            playlists, sorting in the editor and browsing discographies are the expensive operations.
+            Development-mode apps get a small daily budget of API calls. Spotify counts it per family of
+            endpoints, so artist and album lookups can run out while playlist calls keep working. Utilify pauses
+            only the family Spotify refused and tries it again an hour later.
           </p>
-          {cooldown.active ? (
+          {paused.length > 0 ? (
             <div className="text-sm">
-              <div className="text-amber-300">Spotify calls paused; Utilify retries once an hour (at most {cooldown.remaining}).</div>
-              <p className="mt-1 text-xs text-muted">{cooldown.reason}</p>
+              {paused.map((p) => (
+                <div key={p.scope} className="text-amber-300">
+                  {SCOPE_LABEL[p.scope]} paused, next attempt in {p.remaining}.
+                </div>
+              ))}
               <Button
                 local
                 variant="secondary"
                 className="mt-3"
-                title="Only if you know the quota has reset. If it has not, the next call fails and the pause pauses."
+                title="Only if you know the quota has reset. If it has not, the next call fails and the pause starts again."
                 onClick={async () => {
                   try {
                     await api.clearQuotaCooldown();
                     await refreshQuota();
-                    toast("info", "Cooldown cleared. If Spotify is still out of quota, it will pause on the next failure.");
+                    toast("info", "Pauses cleared. If Spotify is still out of quota, it will pause again on the next failure.");
                   } catch (e) {
                     toast("error", errorMessage(e));
                   }
                 }}
               >
-                Clear cooldown early
+                Clear pauses early
               </Button>
             </div>
           ) : (
             <p className="text-sm text-muted">
-              No pause active. If Spotify reports the app's quota exhausted, Utilify stops calling Spotify, probes
-              once an hour, and resumes by itself when the quota is back.
+              Nothing is paused. If Spotify reports a family exhausted, Utilify stops calling that family, leaves
+              the rest alone, and tries again an hour later.
             </p>
           )}
+        </Section>
+
+        <Section title="Discography cache">
+          <p className="mb-2 text-xs text-muted">
+            Artist release lists and album track lists are kept on disk, so rebuilding a discography costs no
+            requests. Release lists are re-read after a week, or when you press Refresh on the Discography page.
+            Album track lists never change, so they are kept until you clear them.
+          </p>
+          <p className="text-sm">
+            {cache
+              ? `${cache.artists} artist${cache.artists === 1 ? "" : "s"}, ${cache.albums} album${
+                  cache.albums === 1 ? "" : "s"
+                }, ${formatBytes(cache.bytes)}`
+              : "Nothing cached yet."}
+          </p>
+          <Button
+            local
+            variant="secondary"
+            className="mt-3"
+            disabled={!cache || cache.bytes === 0}
+            onClick={async () => {
+              try {
+                await api.clearDiscographyCache();
+                setCache(await api.getDiscographyCacheSize());
+                toast("info", "Cached releases removed.");
+              } catch (e) {
+                toast("error", errorMessage(e));
+              }
+            }}
+          >
+            Clear cache
+          </Button>
         </Section>
 
         <Section title="Updates">

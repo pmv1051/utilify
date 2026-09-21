@@ -1,5 +1,6 @@
 pub mod bench;
 pub mod config;
+pub mod discography;
 pub mod migrations;
 pub mod playlists;
 pub mod randomizer;

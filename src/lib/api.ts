@@ -250,8 +250,22 @@ export interface ImportProgress {
   total: number;
 }
 
+/**
+ * Spotify reports its Development Mode quota per family of endpoints, and one
+ * family runs out while the others still answer. Controls are disabled by the
+ * family they use, not all at once.
+ */
+export type QuotaScope = "catalog" | "playlists" | "player";
+
 export interface QuotaStatus {
-  cooldownUntil: number | null;
+  /** Retry time per paused family; families that work are absent. */
+  scopes: Partial<Record<QuotaScope, number>>;
+}
+
+export interface DiscographyCacheSize {
+  artists: number;
+  albums: number;
+  bytes: number;
 }
 
 export interface SkippedTrack {
@@ -271,6 +285,8 @@ export interface DiscographyResult {
   duplicatesSkipped: number;
   otherArtistSkipped: number;
   unplayableSkipped: number;
+  /** Releases whose tracks came from the local cache, costing no request. */
+  releasesFromCache: number;
   /** Capped list of what was left out; the counts above are exact. */
   skipped: SkippedTrack[];
 }
@@ -435,8 +451,10 @@ export const api = {
     invoke<MergeResult>("merge_playlists", { playlistIds, name, dedupeByName, randomize }),
 
   searchArtists: (query: string) => invoke<ArtistHit[]>("search_artists", { query }),
-  getArtistAlbums: (artistId: string, groups: string[]) =>
-    invoke<AlbumInfo[]>("get_artist_albums", { artistId, groups }),
+  getArtistAlbums: (artistId: string, groups: string[], refresh = false) =>
+    invoke<AlbumInfo[]>("get_artist_albums", { artistId, groups, refresh }),
+  getDiscographyCacheSize: () => invoke<DiscographyCacheSize>("get_discography_cache_size"),
+  clearDiscographyCache: () => invoke<void>("clear_discography_cache"),
   createDiscography: (args: {
     artistId: string;
     artistName: string;

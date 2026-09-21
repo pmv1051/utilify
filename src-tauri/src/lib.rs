@@ -92,6 +92,8 @@ pub fn run() {
             commands::get_stats_status,
             commands::get_stats,
             commands::clear_streaming_history,
+            commands::get_discography_cache_size,
+            commands::clear_discography_cache,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Utilify");

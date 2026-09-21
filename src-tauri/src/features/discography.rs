@@ -11,6 +11,8 @@ use crate::error::{AppError, Result};
 use crate::features::generated::{self, GeneratedPlaylist};
 use crate::features::matching::name_key;
 use crate::spotify::artists;
+use crate::db::discography as cache_db;
+use crate::db::now;
 use crate::spotify::models::Track;
 use crate::state::AppState;
 
@@ -24,7 +26,7 @@ pub struct ArtistHit {
     pub followers: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AlbumInfo {
     pub id: String,
@@ -46,6 +48,8 @@ pub struct DiscographyResult {
     pub duplicates_skipped: usize,
     pub other_artist_skipped: usize,
     pub unplayable_skipped: usize,
+    /// Releases whose track list came from the local cache, costing no request.
+    pub releases_from_cache: usize,
     /// What was read but left out, so the result can say *which* tracks are
     /// missing and why. Capped; the counts above stay exact.
     pub skipped: Vec<SkippedTrack>,
@@ -101,6 +105,12 @@ fn cache_get<T: Clone>(cache: &Cache<T>, key: &str) -> Option<Vec<T>> {
         .map(|(_, v)| v.clone())
 }
 
+fn cache_forget_artist(artist_id: &str) {
+    let prefix = format!("{artist_id}|");
+    let mut guard = album_cache().lock().unwrap_or_else(|e| e.into_inner());
+    guard.retain(|k, _| !k.starts_with(&prefix));
+}
+
 fn cache_put<T>(cache: &Cache<T>, key: String, value: Vec<T>) {
     let mut guard = cache.lock().unwrap_or_else(|e| e.into_inner());
     guard.retain(|_, (at, _)| at.elapsed() < CACHE_TTL);
@@ -136,7 +146,12 @@ const ALLOWED_GROUPS: [&str; 4] = ["album", "single", "compilation", "appears_on
 /// Releases of an artist for the given `include_groups`. The UI fetches
 /// `album,single,compilation` once per artist and `appears_on` only on
 /// demand; both results are cached.
-pub async fn albums(state: &AppState, artist_id: &str, groups: &[String]) -> Result<Vec<AlbumInfo>> {
+pub async fn albums(
+    state: &AppState,
+    artist_id: &str,
+    groups: &[String],
+    refresh: bool,
+) -> Result<Vec<AlbumInfo>> {
     let mut groups: Vec<&str> = groups
         .iter()
         .map(String::as_str)
@@ -147,9 +162,28 @@ pub async fn albums(state: &AppState, artist_id: &str, groups: &[String]) -> Res
     if groups.is_empty() {
         return Err(AppError::other("Pick at least one release type."));
     }
-    let key = format!("{artist_id}|{}", groups.join(","));
-    if let Some(hit) = cache_get(album_cache(), &key) {
-        return Ok(hit);
+    let joined = groups.join(",");
+    let key = format!("{artist_id}|{joined}");
+
+    if refresh {
+        cache_forget_artist(artist_id);
+        if let Err(e) = state.db.with(|c| cache_db::forget_artist(c, artist_id)) {
+            log::warn!("could not clear cached releases for {artist_id}: {e}");
+        }
+    } else {
+        if let Some(hit) = cache_get(album_cache(), &key) {
+            return Ok(hit);
+        }
+        let stored = state
+            .db
+            .with(|c| cache_db::get_albums(c, artist_id, &joined, now()))
+            .ok()
+            .flatten();
+        if let Some(list) = stored.and_then(|j| serde_json::from_str::<Vec<AlbumInfo>>(&j).ok()) {
+            log::info!("discography: {} release(s) for {artist_id} from the cache", list.len());
+            cache_put(album_cache(), key, list.clone());
+            return Ok(list);
+        }
     }
 
     let mut out: Vec<AlbumInfo> = artists::artist_albums(&state.spotify, artist_id, &groups.join(","))
@@ -172,6 +206,14 @@ pub async fn albums(state: &AppState, artist_id: &str, groups: &[String]) -> Res
     // Oldest first so the playlist reads chronologically.
     out.sort_by(|x, y| x.release_date.cmp(&y.release_date).then(x.name.cmp(&y.name)));
     cache_put(album_cache(), key, out.clone());
+    match serde_json::to_string(&out) {
+        Ok(json) => {
+            if let Err(e) = state.db.with(|c| cache_db::put_albums(c, artist_id, &joined, &json, now())) {
+                log::warn!("could not cache releases for {artist_id}: {e}");
+            }
+        }
+        Err(e) => log::warn!("could not serialise releases for {artist_id}: {e}"),
+    }
     Ok(out)
 }
 
@@ -262,15 +304,47 @@ pub async fn build(state: &AppState, req: BuildRequest<'_>) -> Result<Discograph
     };
 
     let mut sel = Selection::default();
+    let mut fetched = 0usize;
+    let mut from_cache = 0usize;
 
-    for (i, album) in req.albums.iter().enumerate() {
-        if i > 0 {
-            tokio::time::sleep(Duration::from_millis(150)).await;
-        }
-        for t in artists::album_tracks(&state.spotify, &album.id).await? {
+    for album in req.albums {
+        // An album's track list is fixed once released, so a cached copy is as
+        // good as a fresh one and costs nothing.
+        let stored = state
+            .db
+            .with(|c| cache_db::get_album_tracks(c, &album.id))
+            .ok()
+            .flatten()
+            .and_then(|j| serde_json::from_str::<Vec<Track>>(&j).ok());
+
+        let tracks = match stored {
+            Some(tracks) => {
+                from_cache += 1;
+                tracks
+            }
+            None => {
+                if fetched > 0 {
+                    tokio::time::sleep(Duration::from_millis(150)).await;
+                }
+                fetched += 1;
+                let tracks = artists::album_tracks(&state.spotify, &album.id).await?;
+                match serde_json::to_string(&tracks) {
+                    Ok(json) => {
+                        if let Err(e) = state.db.with(|c| cache_db::put_album_tracks(c, &album.id, &json, now())) {
+                            log::warn!("could not cache tracks for album {}: {e}", album.id);
+                        }
+                    }
+                    Err(e) => log::warn!("could not serialise tracks for album {}: {e}", album.id),
+                }
+                tracks
+            }
+        };
+
+        for t in tracks {
             sel.consider(&t, &album.name, req.artist_id, req.only_this_artist, req.dedupe_by_name);
         }
     }
+    log::info!("discography: {fetched} release(s) fetched, {from_cache} from the cache");
 
     let Selection {
         uris,
@@ -296,6 +370,7 @@ pub async fn build(state: &AppState, req: BuildRequest<'_>) -> Result<Discograph
         duplicates_skipped: duplicates,
         other_artist_skipped: other_artist,
         unplayable_skipped: unplayable,
+        releases_from_cache: from_cache,
         skipped,
     })
 }

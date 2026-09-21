@@ -177,6 +177,26 @@ const MIGRATIONS: &[&str] = &[
         rows_added  INTEGER NOT NULL
     );
     "#,
+    // v7: Discography listings kept on disk. `/artists/{id}/albums` and
+    // `/albums/{id}/tracks` are capped at ten items a page in Development
+    // Mode, so building one catalogue costs dozens of requests; caching them
+    // means a rebuild costs none. An album's track list never changes, so it
+    // has no expiry; an artist's release list does, so it carries a timestamp.
+    r#"
+    CREATE TABLE IF NOT EXISTS artist_albums_cache (
+        artist_id TEXT NOT NULL,
+        groups    TEXT NOT NULL,
+        albums    TEXT NOT NULL,
+        cached_at INTEGER NOT NULL,
+        PRIMARY KEY (artist_id, groups)
+    );
+
+    CREATE TABLE IF NOT EXISTS album_tracks_cache (
+        album_id  TEXT PRIMARY KEY,
+        tracks    TEXT NOT NULL,
+        cached_at INTEGER NOT NULL
+    );
+    "#,
 ];
 
 pub fn run(conn: &Connection) -> rusqlite::Result<()> {
