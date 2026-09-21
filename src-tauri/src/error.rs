@@ -19,10 +19,10 @@ pub enum AppError {
     NotAuthenticated,
     #[error("Spotify session expired. Please reconnect.")]
     AuthExpired,
-    #[error("Spotify's API quota for this app is exhausted. Utilify pauses Spotify calls and retries once an hour until they work again.")]
-    QuotaExceeded,
-    #[error("Paused: Spotify's API quota is exhausted. Utilify retries once an hour and resumes automatically.")]
-    QuotaCooldown { until: i64 },
+    #[error("Spotify's quota for {what} is exhausted. Utilify pauses those calls and retries in an hour; everything else keeps working.")]
+    QuotaExceeded { what: String },
+    #[error("Paused: Spotify's quota for {what} is exhausted. Utilify retries in an hour; everything else keeps working.")]
+    QuotaCooldown { until: i64, what: String },
     #[error("Spotify is rate limiting requests. Wait a minute and try again.")]
     RateLimited,
     #[error("No Spotify device is available. Open Spotify on a device, then try again.")]
@@ -50,7 +50,7 @@ impl AppError {
             AppError::NoClientId => "no_client_id",
             AppError::NotAuthenticated => "not_authenticated",
             AppError::AuthExpired => "auth_expired",
-            AppError::QuotaExceeded => "quota_exceeded",
+            AppError::QuotaExceeded { .. } => "quota_exceeded",
             AppError::QuotaCooldown { .. } => "quota_cooldown",
             AppError::RateLimited => "rate_limited",
             AppError::NoActiveDevice => "no_active_device",

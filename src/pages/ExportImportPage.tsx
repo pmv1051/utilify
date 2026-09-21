@@ -155,7 +155,7 @@ export function ExportImportPage() {
             className="w-full rounded-md border border-line bg-ink px-3 py-2 font-mono text-sm outline-none focus:border-spotify"
           />
           <div className="mt-2 flex items-center gap-3">
-            <Button onClick={findMatches} disabled={lineCount === 0 || matching || building}>
+            <Button scope="catalog" onClick={findMatches} disabled={lineCount === 0 || matching || building}>
               {matching ? <Spinner /> : `Find matches (${lineCount})`}
             </Button>
             {matching && progress && (

@@ -1,5 +1,5 @@
 import { useApp, type Page } from "../stores/app";
-import { useQuotaCooldown } from "../lib/quota";
+import { SCOPE_LABEL, usePausedScopes } from "../lib/quota";
 
 interface Item {
   id: Page;
@@ -43,7 +43,7 @@ export function Sidebar() {
   const setup = useApp((s) => s.setup);
   const sessions = useApp((s) => s.sessions);
   const benches = useApp((s) => s.benches);
-  const cooldown = useQuotaCooldown();
+  const paused = usePausedScopes();
   const offlineSince = useApp((s) => s.offlineSince);
   const availableUpdate = useApp((s) => s.availableUpdate);
   const badge: Partial<Record<Page, number>> = { randomizer: sessions.length, bench: benches.length };
@@ -99,10 +99,16 @@ export function Sidebar() {
           <div className="text-spotify/80">Utilify {availableUpdate.version}</div>
         </button>
       )}
-      {cooldown.active && (
-        <div className="mx-3 mb-2 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-300" title={cooldown.reason}>
-          <div className="font-semibold">Spotify API quota exhausted</div>
-          <div className="text-amber-200/80">Paused · retrying hourly · at most {cooldown.remaining}</div>
+      {paused.length > 0 && (
+        <div className="mx-3 mb-2 rounded-md border border-amber-400/40 bg-amber-400/10 px-3 py-2 text-xs text-amber-300">
+          <div className="font-semibold">
+            {paused.length === 1 ? "Part of Spotify's quota is gone" : "Parts of Spotify's quota are gone"}
+          </div>
+          {paused.map((p) => (
+            <div key={p.scope} className="text-amber-200/80">
+              {SCOPE_LABEL[p.scope]} · retry in {p.remaining}
+            </div>
+          ))}
         </div>
       )}
       <div className="px-5 py-4 text-xs text-muted">

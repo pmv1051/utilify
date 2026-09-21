@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from "react";
+import type { QuotaScope } from "../lib/api";
 import { useQuotaCooldown } from "../lib/quota";
 
 type Variant = "primary" | "secondary" | "ghost" | "danger";
@@ -12,19 +13,26 @@ const styles: Record<Variant, string> = {
 
 /**
  * App button. Almost every button here ends in a Spotify API call, so while
- * the API quota is exhausted buttons disable themselves with an explanation.
- * Pass `local` for buttons that never touch Spotify (navigation, cancel,
- * settings, updates).
+ * that call's quota is exhausted the button disables itself with an
+ * explanation. `scope` says which family of endpoints it uses, since Spotify
+ * runs out of one while the others still answer; playlist calls are the
+ * common case. Pass `local` for buttons that never touch Spotify
+ * (navigation, cancel, settings, updates, stats).
  */
 export function Button({
   variant = "primary",
   className = "",
   local = false,
+  scope = "playlists",
   disabled,
   title,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant; local?: boolean }) {
-  const cooldown = useQuotaCooldown();
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  local?: boolean;
+  scope?: QuotaScope;
+}) {
+  const cooldown = useQuotaCooldown(scope);
   const paused = !local && cooldown.active;
   return (
     <button

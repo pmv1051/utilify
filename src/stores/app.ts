@@ -6,6 +6,7 @@ import {
   type PlaybackState,
   type Playlist,
   type RandomizerSession,
+  type QuotaScope,
   type Settings,
   type SetupState,
   type UpdateInfo,
@@ -44,8 +45,8 @@ interface AppStore {
   playback: PlaybackState | null;
   /** Wall-clock ms when `playback` was received; lets the UI tick progress between polls. */
   playbackReceivedAt: number;
-  /** Unix seconds until artist-family API calls are paused, or null. */
-  quotaCooldownUntil: number | null;
+  /** Retry time per paused endpoint family; families that work are absent. */
+  quotaScopes: Partial<Record<QuotaScope, number>>;
   /** Unix seconds since Spotify became unreachable, or null when online. */
   offlineSince: number | null;
   /** Newer version found by the updater, if any. */
@@ -53,7 +54,7 @@ interface AppStore {
   toasts: Toast[];
 
   init: () => Promise<void>;
-  setQuotaCooldown: (until: number | null) => void;
+  setQuotaScopes: (scopes: Partial<Record<QuotaScope, number>>) => void;
   refreshQuota: () => Promise<void>;
   setOfflineSince: (since: number | null) => void;
   setAvailableUpdate: (u: UpdateInfo | null) => void;
@@ -86,7 +87,7 @@ export const useApp = create<AppStore>((set, get) => ({
   benchPlaylistId: null,
   playback: null,
   playbackReceivedAt: 0,
-  quotaCooldownUntil: null,
+  quotaScopes: {},
   offlineSince: null,
   availableUpdate: null,
   toasts: [],
@@ -113,14 +114,14 @@ export const useApp = create<AppStore>((set, get) => ({
     ]);
   },
 
-  setQuotaCooldown: (until) => set({ quotaCooldownUntil: until }),
+  setQuotaScopes: (scopes) => set({ quotaScopes: scopes }),
   setOfflineSince: (since) => set({ offlineSince: since }),
   setAvailableUpdate: (u) => set({ availableUpdate: u }),
 
   refreshQuota: async () => {
     try {
       const q = await api.getQuotaStatus();
-      set({ quotaCooldownUntil: q.cooldownUntil });
+      set({ quotaScopes: q.scopes });
     } catch {
       // non-critical
     }

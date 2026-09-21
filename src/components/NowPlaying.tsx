@@ -35,7 +35,7 @@ export function NowPlaying() {
   const setPage = useApp((s) => s.setPage);
   const toast = useApp((s) => s.toast);
   const setup = useApp((s) => s.setup);
-  const cooldown = useQuotaCooldown();
+  const cooldown = useQuotaCooldown("player");
   const premium = setup?.userProduct === "premium" || !setup?.userProduct;
   const premiumTitle = cooldown.active
     ? cooldown.reason

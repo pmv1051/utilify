@@ -52,7 +52,9 @@ async fn tick(app: &AppHandle) {
     if !state.spotify.is_authenticated() {
         return;
     }
-    if state.spotify.quota_status().cooldown_until.is_some() {
+    // Only the player family gates the poll; a catalog pause must not stop
+    // playback tracking, bench restores or re-shuffles.
+    if state.spotify.quota_status().is_paused(crate::spotify::client::QuotaScope::Player) {
         let now = crate::db::now();
         let mut last = state.last_quota_probe.lock().unwrap_or_else(|e| e.into_inner());
         if now - *last < QUOTA_PROBE_INTERVAL_SECS {
@@ -85,7 +87,7 @@ async fn tick(app: &AppHandle) {
             // No point running scheduled work without connectivity.
             return;
         }
-        Err(AppError::QuotaExceeded) | Err(AppError::QuotaCooldown { .. }) => {
+        Err(AppError::QuotaExceeded { .. }) | Err(AppError::QuotaCooldown { .. }) => {
             log::debug!("polling: quota still exhausted");
             return;
         }

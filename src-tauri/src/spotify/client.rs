@@ -25,17 +25,60 @@ const MAX_ATTEMPTS: u32 = 5;
 const MAX_RETRY_AFTER_SECS: u64 = 60;
 /// Refresh the access token this many seconds before it actually expires.
 const REFRESH_LEEWAY_SECS: i64 = 60;
-/// Ceiling for a quota pause. Spotify's Development Mode quota is global to
-/// the app (live 2026-09-18: `/playlists/*/items` and `/me/playlists` 429d
-/// too) and recovers on its own, usually within hours; the polling loop probes
-/// once an hour and the first successful call ends the pause early.
-pub const QUOTA_COOLDOWN_SECS: i64 = 24 * 3600;
+/// How long to stop calling a family of endpoints after Spotify reports its
+/// quota is gone. The next call after this is allowed through; if it fails the
+/// same way the wait starts again.
+pub const QUOTA_RETRY_SECS: i64 = 3600;
 
 /// Where cooldown changes are broadcast to the UI (`quota-cooldown` event).
 static EVENT_SINK: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
 
 pub fn set_event_sink(app: tauri::AppHandle) {
     let _ = EVENT_SINK.set(app);
+}
+
+/// Development Mode reports `QUOTA_EXCEEDED` per family of endpoints, and a
+/// family that still has room keeps answering while another is exhausted.
+/// Pausing every call on one 429 took the whole app down for one tool's limit,
+/// so each family is paused on its own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum QuotaScope {
+    /// `/artists`, `/albums`, `/search` — what Discography leans on.
+    Catalog,
+    /// `/playlists`, `/me/playlists`, `/me/tracks`.
+    Playlists,
+    /// `/me/player…`
+    Player,
+}
+
+impl QuotaScope {
+    pub fn key(self) -> &'static str {
+        match self {
+            QuotaScope::Catalog => "catalog",
+            QuotaScope::Playlists => "playlists",
+            QuotaScope::Player => "player",
+        }
+    }
+
+    /// What to call this family in a sentence aimed at the user.
+    pub fn label(self) -> &'static str {
+        match self {
+            QuotaScope::Catalog => "artist and album lookups",
+            QuotaScope::Playlists => "playlist requests",
+            QuotaScope::Player => "playback control",
+        }
+    }
+
+    fn of_url(url: &str) -> Self {
+        let p = url.strip_prefix(API_BASE).unwrap_or(url);
+        if p.starts_with("/me/player") {
+            QuotaScope::Player
+        } else if p.starts_with("/artists") || p.starts_with("/albums") || p.starts_with("/search") {
+            QuotaScope::Catalog
+        } else {
+            QuotaScope::Playlists
+        }
+    }
 }
 
 /// The one call allowed during a pause: the player poll, which the polling
@@ -45,10 +88,22 @@ fn is_probe(method: &Method, url: &str) -> bool {
     *method == Method::GET && (p == "/me/player" || p.starts_with("/me/player?"))
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+/// Retry times per paused family, keyed by `QuotaScope::key`. Families that
+/// are not paused are absent, so an empty map means everything works.
+#[derive(Debug, Clone, Default, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct QuotaStatus {
-    pub cooldown_until: Option<i64>,
+    pub scopes: std::collections::BTreeMap<String, i64>,
+}
+
+impl QuotaStatus {
+    pub fn until(&self, scope: QuotaScope) -> Option<i64> {
+        self.scopes.get(scope.key()).copied()
+    }
+
+    pub fn is_paused(&self, scope: QuotaScope) -> bool {
+        self.until(scope).is_some()
+    }
 }
 
 #[derive(Clone)]
@@ -173,45 +228,65 @@ impl SpotifyClient {
     // ---- quota cooldown ----------------------------------------------------
 
     pub fn quota_status(&self) -> QuotaStatus {
-        let until = self
-            .db
-            .with(|c| config::get(c, config::QUOTA_COOLDOWN_UNTIL))
+        let now = now();
+        let mut scopes = self.read_cooldowns();
+        scopes.retain(|_, until| *until > now);
+        QuotaStatus { scopes }
+    }
+
+    fn read_cooldowns(&self) -> std::collections::BTreeMap<String, i64> {
+        self.db
+            .with(|c| config::get(c, config::QUOTA_COOLDOWNS))
             .ok()
             .flatten()
-            .and_then(|s| s.parse::<i64>().ok())
-            .filter(|u| *u > now());
-        QuotaStatus { cooldown_until: until }
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
     }
 
-    fn start_quota_cooldown(&self) {
-        if self.quota_status().cooldown_until.is_some() {
-            return; // already paused; keep the original deadline
+    fn write_cooldowns(&self, scopes: &std::collections::BTreeMap<String, i64>) {
+        let result = if scopes.is_empty() {
+            self.db.with(|c| config::delete(c, config::QUOTA_COOLDOWNS))
+        } else {
+            match serde_json::to_string(scopes) {
+                Ok(json) => self.db.with(|c| config::set(c, config::QUOTA_COOLDOWNS, &json)),
+                Err(e) => {
+                    log::warn!("could not serialise quota cooldowns: {e}");
+                    return;
+                }
+            }
+        };
+        if let Err(e) = result {
+            log::warn!("could not record quota cooldowns: {e}");
         }
-        let until = now() + QUOTA_COOLDOWN_SECS;
-        if let Err(e) = self
-            .db
-            .with(|c| config::set(c, config::QUOTA_COOLDOWN_UNTIL, &until.to_string()))
-        {
-            log::warn!("could not record quota cooldown: {e}");
-        }
-        log::warn!("QUOTA_EXCEEDED: Spotify API calls paused (probing once an hour, ceiling {until})");
         if let Some(app) = EVENT_SINK.get() {
-            let _ = tauri::Emitter::emit(app, "quota-cooldown", QuotaStatus { cooldown_until: Some(until) });
+            let _ = tauri::Emitter::emit(app, "quota-cooldown", self.quota_status());
         }
     }
 
-    /// A successful call proves the quota is back: end the pause.
-    fn end_quota_cooldown_if_active(&self) {
-        if self.quota_status().cooldown_until.is_some() {
-            log::info!("quota recovered: Spotify answered normally again");
-            let _ = self.clear_quota_cooldown();
+    fn start_quota_cooldown(&self, scope: QuotaScope) {
+        let mut scopes = self.quota_status().scopes;
+        let until = now() + QUOTA_RETRY_SECS;
+        scopes.insert(scope.key().to_string(), until);
+        log::warn!(
+            "QUOTA_EXCEEDED for {}: paused until {until}; other endpoints keep working",
+            scope.key()
+        );
+        self.write_cooldowns(&scopes);
+    }
+
+    /// A successful call proves that family is back: end its pause.
+    fn end_quota_cooldown_if_active(&self, scope: QuotaScope) {
+        let mut scopes = self.quota_status().scopes;
+        if scopes.remove(scope.key()).is_some() {
+            log::info!("quota recovered for {}", scope.key());
+            self.write_cooldowns(&scopes);
         }
     }
 
     pub fn clear_quota_cooldown(&self) -> Result<()> {
-        self.db.with(|c| config::delete(c, config::QUOTA_COOLDOWN_UNTIL))?;
+        self.db.with(|c| config::delete(c, config::QUOTA_COOLDOWNS))?;
         if let Some(app) = EVENT_SINK.get() {
-            let _ = tauri::Emitter::emit(app, "quota-cooldown", QuotaStatus { cooldown_until: None });
+            let _ = tauri::Emitter::emit(app, "quota-cooldown", QuotaStatus::default());
         }
         Ok(())
     }
@@ -376,9 +451,13 @@ impl SpotifyClient {
         query: &[(&str, String)],
         body: Option<&Value>,
     ) -> Result<Option<String>> {
+        let scope = QuotaScope::of_url(url);
         if !is_probe(&method, url) {
-            if let Some(until) = self.quota_status().cooldown_until {
-                return Err(AppError::QuotaCooldown { until });
+            if let Some(until) = self.quota_status().until(scope) {
+                return Err(AppError::QuotaCooldown {
+                    until,
+                    what: scope.label().to_string(),
+                });
             }
         }
         let mut refreshed_after_401 = false;
@@ -414,7 +493,7 @@ impl SpotifyClient {
             let text = resp.text().await.unwrap_or_default();
 
             if status.is_success() {
-                self.end_quota_cooldown_if_active();
+                self.end_quota_cooldown_if_active(scope);
                 if status == StatusCode::NO_CONTENT || text.trim().is_empty() {
                     return Ok(None);
                 }
@@ -454,8 +533,10 @@ impl SpotifyClient {
                 }
                 StatusCode::TOO_MANY_REQUESTS => {
                     if reason.as_deref() == Some("QUOTA_EXCEEDED") || text.contains("QUOTA_EXCEEDED") {
-                        self.start_quota_cooldown();
-                        return Err(AppError::QuotaExceeded);
+                        self.start_quota_cooldown(scope);
+                        return Err(AppError::QuotaExceeded {
+                            what: scope.label().to_string(),
+                        });
                     }
                     if attempt >= MAX_ATTEMPTS {
                         return Err(AppError::RateLimited);
@@ -496,4 +577,111 @@ impl SpotifyClient {
 
 fn backoff(attempt: u32) -> Duration {
     Duration::from_millis(500 * 2u64.pow(attempt.min(5)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn urls_land_in_the_right_family() {
+        let f = |p: &str| QuotaScope::of_url(&format!("{API_BASE}{p}"));
+        assert_eq!(f("/artists/abc/albums"), QuotaScope::Catalog);
+        assert_eq!(f("/albums/abc/tracks"), QuotaScope::Catalog);
+        assert_eq!(f("/search?q=x"), QuotaScope::Catalog);
+        assert_eq!(f("/playlists/abc/items"), QuotaScope::Playlists);
+        assert_eq!(f("/me/playlists"), QuotaScope::Playlists);
+        assert_eq!(f("/me/tracks"), QuotaScope::Playlists);
+        assert_eq!(f("/me/player"), QuotaScope::Player);
+        assert_eq!(f("/me/player/play"), QuotaScope::Player);
+        // Anything unrecognised is treated as a playlist call rather than
+        // silently escaping the pause.
+        assert_eq!(f("/something/new"), QuotaScope::Playlists);
+    }
+
+    fn client() -> (SpotifyClient, tempdir::Guard) {
+        let guard = tempdir::make();
+        let db = Db::open(&guard.path.join("t.db")).unwrap();
+        (SpotifyClient::new(db), guard)
+    }
+
+    /// The whole point of the change: one exhausted family must not stop the
+    /// others.
+    #[test]
+    fn pausing_one_family_leaves_the_others_alone() {
+        let (c, _g) = client();
+        c.start_quota_cooldown(QuotaScope::Catalog);
+
+        let s = c.quota_status();
+        assert!(s.is_paused(QuotaScope::Catalog));
+        assert!(!s.is_paused(QuotaScope::Playlists));
+        assert!(!s.is_paused(QuotaScope::Player));
+
+        c.start_quota_cooldown(QuotaScope::Playlists);
+        let s = c.quota_status();
+        assert!(s.is_paused(QuotaScope::Catalog));
+        assert!(s.is_paused(QuotaScope::Playlists));
+        assert!(!s.is_paused(QuotaScope::Player));
+    }
+
+    #[test]
+    fn a_success_clears_only_its_own_family() {
+        let (c, _g) = client();
+        c.start_quota_cooldown(QuotaScope::Catalog);
+        c.start_quota_cooldown(QuotaScope::Playlists);
+
+        c.end_quota_cooldown_if_active(QuotaScope::Catalog);
+        let s = c.quota_status();
+        assert!(!s.is_paused(QuotaScope::Catalog));
+        assert!(s.is_paused(QuotaScope::Playlists));
+    }
+
+    #[test]
+    fn a_pause_lapses_so_the_next_attempt_goes_through() {
+        let (c, _g) = client();
+        c.start_quota_cooldown(QuotaScope::Catalog);
+        let until = c.quota_status().until(QuotaScope::Catalog).unwrap();
+        assert!(until > now() && until <= now() + QUOTA_RETRY_SECS);
+
+        // Rewind the stored deadline past its end.
+        let mut scopes = std::collections::BTreeMap::new();
+        scopes.insert(QuotaScope::Catalog.key().to_string(), now() - 1);
+        c.write_cooldowns(&scopes);
+        assert!(!c.quota_status().is_paused(QuotaScope::Catalog));
+    }
+
+    #[test]
+    fn clearing_removes_every_pause() {
+        let (c, _g) = client();
+        c.start_quota_cooldown(QuotaScope::Catalog);
+        c.start_quota_cooldown(QuotaScope::Player);
+        c.clear_quota_cooldown().unwrap();
+        let s = c.quota_status();
+        assert!(s.scopes.is_empty());
+    }
+
+    mod tempdir {
+        use std::path::PathBuf;
+
+        pub struct Guard {
+            pub path: PathBuf,
+        }
+
+        impl Drop for Guard {
+            fn drop(&mut self) {
+                let _ = std::fs::remove_dir_all(&self.path);
+            }
+        }
+
+        pub fn make() -> Guard {
+            let path = std::env::temp_dir().join(format!(
+                "utilify-quota-{}-{:?}",
+                std::process::id(),
+                std::thread::current().id()
+            ));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).unwrap();
+            Guard { path }
+        }
+    }
 }

@@ -11,7 +11,8 @@ pub const MINIMIZE_TO_TRAY: &str = "minimize_to_tray";
 /// "1" when the user opted in to periodic update checks (never auto-installs).
 pub const UPDATE_CHECK_ENABLED: &str = "update_check_enabled";
 /// Unix time until which artist-family API calls are paused after QUOTA_EXCEEDED.
-pub const QUOTA_COOLDOWN_UNTIL: &str = "quota_cooldown_until";
+/// JSON map of endpoint family -> unix time to retry after.
+pub const QUOTA_COOLDOWNS: &str = "quota_cooldowns";
 
 pub fn get(conn: &Connection, key: &str) -> rusqlite::Result<Option<String>> {
     conn.query_row("SELECT value FROM config WHERE key = ?1", [key], |r| r.get(0))

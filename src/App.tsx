@@ -1,7 +1,16 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { useApp } from "./stores/app";
-import type { BenchRow, Connectivity, PlaybackState, QuotaStatus, RandomizerSession, UpdateInfo } from "./lib/api";
+import type {
+  BenchRow,
+  Connectivity,
+  PlaybackState,
+  QuotaScope,
+  QuotaStatus,
+  RandomizerSession,
+  UpdateInfo,
+} from "./lib/api";
+import { SCOPE_LABEL } from "./lib/quota";
 import { SetupPage } from "./pages/SetupPage";
 import { PlaylistsPage } from "./pages/PlaylistsPage";
 import { RandomizerPage } from "./pages/RandomizerPage";
@@ -27,7 +36,7 @@ export default function App() {
   const setPlayback = useApp((s) => s.setPlayback);
   const refreshSessions = useApp((s) => s.refreshSessions);
   const refreshBenches = useApp((s) => s.refreshBenches);
-  const setQuotaCooldown = useApp((s) => s.setQuotaCooldown);
+  const setQuotaScopes = useApp((s) => s.setQuotaScopes);
   const setOfflineSince = useApp((s) => s.setOfflineSince);
   const setAvailableUpdate = useApp((s) => s.setAvailableUpdate);
   const toast = useApp((s) => s.toast);
@@ -56,9 +65,16 @@ export default function App() {
         if (e.payload.online) toast("success", "Spotify is reachable again.");
       }),
       listen<QuotaStatus>("quota-cooldown", (e) => {
-        setQuotaCooldown(e.payload.cooldownUntil);
-        if (e.payload.cooldownUntil) {
-          toast("error", "Spotify's API quota for this app is exhausted. Utilify pauses Spotify calls and retries once an hour; it resumes by itself.");
+        const before = useApp.getState().quotaScopes;
+        setQuotaScopes(e.payload.scopes);
+        // Only announce a family that was not already paused, so recovering
+        // one of two does not read as a fresh failure.
+        const fresh = (Object.keys(e.payload.scopes) as QuotaScope[]).filter((s) => !before[s]);
+        for (const scope of fresh) {
+          toast(
+            "error",
+            `Spotify's quota for ${SCOPE_LABEL[scope]} is exhausted. Utilify pauses those calls and tries again in an hour; everything else keeps working.`,
+          );
         }
       }),
       listen<void>("auth-expired", () => {
@@ -69,7 +85,7 @@ export default function App() {
     return () => {
       unlisteners.forEach((p) => p.then((un) => un()));
     };
-  }, [init, setPlayback, refreshSessions, refreshBenches, setQuotaCooldown, setOfflineSince, setAvailableUpdate, toast]);
+  }, [init, setPlayback, refreshSessions, refreshBenches, setQuotaScopes, setOfflineSince, setAvailableUpdate, toast]);
 
   if (!ready || !setup) {
     return (
