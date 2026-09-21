@@ -26,9 +26,10 @@ const MAX_RETRY_AFTER_SECS: u64 = 60;
 /// Refresh the access token this many seconds before it actually expires.
 const REFRESH_LEEWAY_SECS: i64 = 60;
 /// How long to stop calling a family of endpoints after Spotify reports its
-/// quota is gone. The next call after this is allowed through; if it fails the
-/// same way the wait starts again.
-pub const QUOTA_RETRY_SECS: i64 = 3600;
+/// quota is gone. Development Mode budgets reset daily, so retrying sooner
+/// spends requests on a refusal; nothing is sent to that family until the day
+/// is up, and Settings can clear the wait by hand.
+pub const QUOTA_PAUSE_SECS: i64 = 24 * 3600;
 
 /// Where cooldown changes are broadcast to the UI (`quota-cooldown` event).
 static EVENT_SINK: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
@@ -79,13 +80,6 @@ impl QuotaScope {
             QuotaScope::Playlists
         }
     }
-}
-
-/// The one call allowed during a pause: the player poll, which the polling
-/// loop throttles to a probe cadence while paused.
-fn is_probe(method: &Method, url: &str) -> bool {
-    let p = url.strip_prefix(API_BASE).unwrap_or(url);
-    *method == Method::GET && (p == "/me/player" || p.starts_with("/me/player?"))
 }
 
 /// Retry times per paused family, keyed by `QuotaScope::key`. Families that
@@ -265,7 +259,7 @@ impl SpotifyClient {
 
     fn start_quota_cooldown(&self, scope: QuotaScope) {
         let mut scopes = self.quota_status().scopes;
-        let until = now() + QUOTA_RETRY_SECS;
+        let until = now() + QUOTA_PAUSE_SECS;
         scopes.insert(scope.key().to_string(), until);
         log::warn!(
             "QUOTA_EXCEEDED for {}: paused until {until}; other endpoints keep working",
@@ -452,13 +446,11 @@ impl SpotifyClient {
         body: Option<&Value>,
     ) -> Result<Option<String>> {
         let scope = QuotaScope::of_url(url);
-        if !is_probe(&method, url) {
-            if let Some(until) = self.quota_status().until(scope) {
-                return Err(AppError::QuotaCooldown {
-                    until,
-                    what: scope.label().to_string(),
-                });
-            }
+        if let Some(until) = self.quota_status().until(scope) {
+            return Err(AppError::QuotaCooldown {
+                until,
+                what: scope.label().to_string(),
+            });
         }
         let mut refreshed_after_401 = false;
         for attempt in 1..=MAX_ATTEMPTS {
@@ -641,7 +633,7 @@ mod tests {
         let (c, _g) = client();
         c.start_quota_cooldown(QuotaScope::Catalog);
         let until = c.quota_status().until(QuotaScope::Catalog).unwrap();
-        assert!(until > now() && until <= now() + QUOTA_RETRY_SECS);
+        assert!(until > now() && until <= now() + QUOTA_PAUSE_SECS);
 
         // Rewind the stored deadline past its end.
         let mut scopes = std::collections::BTreeMap::new();

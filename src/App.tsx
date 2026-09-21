@@ -73,7 +73,7 @@ export default function App() {
         for (const scope of fresh) {
           toast(
             "error",
-            `Spotify's quota for ${SCOPE_LABEL[scope]} is exhausted. Utilify pauses those calls and tries again in an hour; everything else keeps working.`,
+            `Spotify's quota for ${SCOPE_LABEL[scope]} is exhausted. Utilify stops sending them for 24 hours; everything else keeps working.`,
           );
         }
       }),

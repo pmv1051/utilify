@@ -11,7 +11,7 @@ export interface Cooldown {
   /** True while this family of calls is paused. */
   active: boolean;
   until: number | null;
-  /** Time until the next attempt, e.g. "41 min". */
+  /** Time left on the pause, e.g. "18 h 20 min". */
   remaining: string;
   /** Full sentence for a disabled control's hover title. */
   reason: string;
@@ -55,7 +55,7 @@ export function useQuotaCooldown(scope: QuotaScope = "playlists"): Cooldown {
     active: true,
     until,
     remaining,
-    reason: `Temporarily disabled: Spotify's quota for ${SCOPE_LABEL[scope]} is exhausted. Utilify tries again in ${remaining}; everything else keeps working.`,
+    reason: `Temporarily disabled: Spotify's quota for ${SCOPE_LABEL[scope]} is exhausted. Spotify's budget resets daily, so Utilify waits ${remaining} before sending these again; everything else keeps working.`,
   };
 }
 

@@ -43,25 +43,16 @@ pub fn start(app: AppHandle) {
     });
 }
 
-/// While the API quota is exhausted, poll only this often; the first
-/// successful poll ends the pause.
-const QUOTA_PROBE_INTERVAL_SECS: i64 = 60 * 60;
-
 async fn tick(app: &AppHandle) {
     let state = app.state::<AppState>();
     if !state.spotify.is_authenticated() {
         return;
     }
     // Only the player family gates the poll; a catalog pause must not stop
-    // playback tracking, bench restores or re-shuffles.
+    // bench restores. Nothing is sent while it is paused: the budget resets
+    // daily, so probing before then only spends a request on a refusal.
     if state.spotify.quota_status().is_paused(crate::spotify::client::QuotaScope::Player) {
-        let now = crate::db::now();
-        let mut last = state.last_quota_probe.lock().unwrap_or_else(|e| e.into_inner());
-        if now - *last < QUOTA_PROBE_INTERVAL_SECS {
-            return;
-        }
-        *last = now;
-        log::debug!("polling: quota probe");
+        return;
     }
     match playback::get_playback_state(&state.spotify).await {
         Ok(current) => {

@@ -19,9 +19,9 @@ pub enum AppError {
     NotAuthenticated,
     #[error("Spotify session expired. Please reconnect.")]
     AuthExpired,
-    #[error("Spotify's quota for {what} is exhausted. Utilify pauses those calls and retries in an hour; everything else keeps working.")]
+    #[error("Spotify's quota for {what} is exhausted. Utilify stops sending them for 24 hours; everything else keeps working.")]
     QuotaExceeded { what: String },
-    #[error("Paused: Spotify's quota for {what} is exhausted. Utilify retries in an hour; everything else keeps working.")]
+    #[error("Paused: Spotify's quota for {what} is exhausted. Utilify waits 24 hours before trying again; everything else keeps working.")]
     QuotaCooldown { until: i64, what: String },
     #[error("Spotify is rate limiting requests. Wait a minute and try again.")]
     RateLimited,

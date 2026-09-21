@@ -122,7 +122,8 @@ export function SettingsPage() {
           <p className="mb-2 text-xs text-muted">
             Development-mode apps get a small daily budget of API calls. Spotify counts it per family of
             endpoints, so artist and album lookups can run out while playlist calls keep working. Utilify pauses
-            only the family Spotify refused and tries it again an hour later.
+            only the family Spotify refused, and leaves it paused for 24 hours: the budget resets daily, so an
+            earlier retry just spends a request on another refusal.
           </p>
           {paused.length > 0 ? (
             <div className="text-sm">
@@ -151,8 +152,8 @@ export function SettingsPage() {
             </div>
           ) : (
             <p className="text-sm text-muted">
-              Nothing is paused. If Spotify reports a family exhausted, Utilify stops calling that family, leaves
-              the rest alone, and tries again an hour later.
+              Nothing is paused. If Spotify reports a family exhausted, Utilify stops calling that family for 24
+              hours and leaves the rest alone.
             </p>
           )}
         </Section>

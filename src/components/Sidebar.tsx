@@ -106,7 +106,7 @@ export function Sidebar() {
           </div>
           {paused.map((p) => (
             <div key={p.scope} className="text-amber-200/80">
-              {SCOPE_LABEL[p.scope]} · retry in {p.remaining}
+              {SCOPE_LABEL[p.scope]} · {p.remaining} left
             </div>
           ))}
         </div>
