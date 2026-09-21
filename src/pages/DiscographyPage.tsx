@@ -224,8 +224,8 @@ export function DiscographyPage() {
             <div className="font-semibold text-amber-300">
               Paused: Spotify's quota for artist and album lookups is exhausted.
             </div>
-            This tool is the one that uses them. Spotify's budget resets daily, so it waits {cooldown.remaining}
-            before sending any more. The other tools are unaffected, and releases you have already looked up stay
+            This tool is the one that uses them. Spotify's budget resets daily, so it waits {cooldown.remaining} before sending any more.
+            The other tools are unaffected, and releases you have already looked up stay
             available.
           </div>
         )}
