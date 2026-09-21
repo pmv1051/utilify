@@ -14,7 +14,19 @@ use crate::spotify::client::SpotifyClient;
 use crate::state::AppState;
 
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // Must be the first plugin. Launching Utilify while it is already running
+    // (often hidden in the tray) starts a second process; this hands off to
+    // the running one, which brings its window forward, and the new process
+    // exits before it opens the database or starts a second polling loop.
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        log::info!("Utilify was launched again; showing the running window instead");
+        tray::show_main_window(app);
+    }));
+
+    builder
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())

@@ -127,5 +127,12 @@ pub async fn install(app: &AppHandle, state: &AppState) -> Result<()> {
         .map_err(|e| AppError::other(format!("Update failed: {e}")))?;
 
     log::info!("update installed; restarting");
+    // The relaunched copy must not find this process still holding the
+    // single-instance lock, or it would hand off to us and exit while we exit
+    // too, leaving nothing running. The lock is normally released on the exit
+    // event, but Tauri skips that event when restart runs on the main thread,
+    // so release it here rather than depend on which thread we are on.
+    #[cfg(desktop)]
+    tauri_plugin_single_instance::destroy(app);
     app.restart();
 }

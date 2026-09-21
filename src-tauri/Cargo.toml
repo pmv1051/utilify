@@ -35,6 +35,10 @@ thiserror = "2"
 url = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
+# Desktop only: a second launch hands off to the running instance and exits.
+[target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2"
+
 [profile.release]
 codegen-units = 1
 lto = true
