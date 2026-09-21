@@ -20,11 +20,14 @@ Utilify runs entirely on your computer. Nothing is sent anywhere except Spotify'
 
 - **Spotify Premium.** Spotify's API only allows playback control for Premium accounts, and its Development Mode requires it too.
 - **Your own Spotify app** (free, about two minutes; the first launch walks you through it). Utilify ships without a Client ID so there is no shared user limit.
-- Windows 10/11, macOS 11+, or a Linux desktop with WebKitGTK.
+- Windows 10/11, macOS 11+, or a Linux desktop with WebKitGTK. **Only Windows is tested.** The macOS and Linux builds
+  are published with every release but untested. Expect rough edges there, and please open an issue if something
+  breaks.
 
 ## Install
 
-These links always fetch the newest release:
+These links always fetch the newest release. Utilify is developed and tested on Windows only; the macOS and Linux
+downloads are untested builds.
 
 | Platform | Download |
 | --- | --- |

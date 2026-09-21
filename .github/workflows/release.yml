@@ -92,6 +92,8 @@ jobs:
 
             Ignore the rest: `.sig`, `.app.tar.gz` and `latest.json` belong to the in-app updater, and "Source code" is added by GitHub.
 
+            Utilify is tested on Windows only. The macOS and Linux builds are published but untested; please open an issue if something breaks.
+
             The installers are not signed with a paid certificate, so Windows SmartScreen and macOS Gatekeeper warn on first launch (Windows: More info → Run anyway; macOS: right-click → Open).
 
             First launch walks you through creating your own free Spotify app (about 2 minutes). Spotify Premium is required.
