@@ -1,6 +1,6 @@
 [package]
 name = "utilify"
-version = "0.2.3"
+version = "0.2.4"
 description = "Spotify playlist utilities Spotify forgot to build"
 authors = ["Utilify contributors"]
 license = "MIT"
