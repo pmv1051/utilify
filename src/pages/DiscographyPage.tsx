@@ -34,7 +34,7 @@ const APPEARS_ON_REASON =
 export function DiscographyPage() {
   const toast = useApp((s) => s.toast);
   const refreshPlaylists = useApp((s) => s.refreshPlaylists);
-  const cooldown = useQuotaCooldown();
+  const cooldown = useQuotaCooldown("catalog");
   const paused = cooldown.active;
 
   const [query, setQuery] = useState("");
@@ -53,13 +53,37 @@ export function DiscographyPage() {
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const albumCache = useRef(new Map<string, AlbumInfo[]>());
 
-  async function fetchGroups(artistId: string, cacheKey: string, groups: string[]): Promise<AlbumInfo[]> {
+  async function fetchGroups(
+    artistId: string,
+    cacheKey: string,
+    groups: string[],
+    refresh = false,
+  ): Promise<AlbumInfo[]> {
     const key = `${artistId}|${cacheKey}`;
-    const hit = albumCache.current.get(key);
-    if (hit) return hit;
-    const list = await api.getArtistAlbums(artistId, groups);
+    if (!refresh) {
+      const hit = albumCache.current.get(key);
+      if (hit) return hit;
+    }
+    const list = await api.getArtistAlbums(artistId, groups, refresh);
     albumCache.current.set(key, list);
     return list;
+  }
+
+  /** Re-read this artist's releases from Spotify, past both caches. */
+  async function refreshReleases() {
+    if (!artist) return;
+    setLoadingAlbums(true);
+    setResult(null);
+    try {
+      const list = await fetchGroups(artist.id, "base", ["album", "single", "compilation"], true);
+      setBase(list);
+      setChosen(new Set(list.filter((a) => a.group === "album" || a.group === "single").map((a) => a.id)));
+      toast("success", `${list.length} releases re-read from Spotify.`);
+    } catch (e) {
+      toast("error", errorMessage(e));
+    } finally {
+      setLoadingAlbums(false);
+    }
   }
 
   const [name, setName] = useState("");
@@ -72,6 +96,12 @@ export function DiscographyPage() {
   async function search() {
     if (!query.trim()) return;
     setSearching(true);
+    // Drop the artist that was picked before: the hit list is hidden while one
+    // is selected, so leaving it set made a new search look like it did
+    // nothing while the old releases stayed on screen.
+    setArtist(null);
+    setHits([]);
+    setResult(null);
     try {
       const r = await api.searchArtists(query);
       setHits(r);
@@ -190,10 +220,12 @@ export function DiscographyPage() {
       <PageHeader title="Artist Discography" />
       <div className="flex-1 space-y-5 overflow-auto p-6">
         {paused && (
-          <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200" title={cooldown.reason}>
-            <div className="font-semibold text-amber-300">Paused: Spotify's API quota is exhausted.</div>
-            Utilify retries once an hour and re-enables everything as soon as Spotify answers again (at most{" "}
-            {cooldown.remaining}).
+          <div className="rounded-lg border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200">
+            <div className="font-semibold text-amber-300">
+              Paused: Spotify's quota for artist and album lookups is exhausted.
+            </div>
+            This tool is the one that uses them, so it waits {cooldown.remaining} before trying again. The other
+            tools are unaffected. Releases you have already looked up stay available.
           </div>
         )}
         <section className="rounded-lg border border-line bg-panel p-5">
@@ -207,7 +239,12 @@ export function DiscographyPage() {
               title={paused ? cooldown.reason : undefined}
               className="w-80 rounded-md border border-line bg-ink px-3 py-1.5 text-sm outline-none focus:border-spotify disabled:opacity-50"
             />
-            <Button onClick={search} disabled={paused || searching || !query.trim()} title={paused ? cooldown.reason : undefined}>
+            <Button
+              scope="catalog"
+              onClick={search}
+              disabled={paused || searching || !query.trim()}
+              title={paused ? cooldown.reason : undefined}
+            >
               {searching ? <Spinner /> : "Search"}
             </Button>
             {artist && (
@@ -273,8 +310,23 @@ export function DiscographyPage() {
                 <span className="text-xs">(disabled)</span>
                 {loadingAlbums && base.length > 0 && <Spinner />}
               </label>
-              <span className="ml-auto text-xs text-muted">
-                {chosen.size} of {albums.length} releases · about {chosenTracks} tracks before deduplication
+              <span className="ml-auto flex items-center gap-3 text-xs text-muted">
+                <span>
+                  {chosen.size} of {albums.length} releases · about {chosenTracks} tracks before deduplication
+                </span>
+                <button
+                  type="button"
+                  onClick={refreshReleases}
+                  disabled={paused || loadingAlbums}
+                  title={
+                    paused
+                      ? cooldown.reason
+                      : "Releases are kept for a week so re-opening an artist costs no requests. Use this after a new release."
+                  }
+                  className="rounded border border-line px-2 py-1 transition hover:bg-panel-2 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Refresh
+                </button>
               </span>
             </div>
             <p className="mb-3 text-xs text-muted">{APPEARS_ON_REASON}</p>
@@ -350,7 +402,12 @@ export function DiscographyPage() {
                 Randomize order
               </label>
               <div className="ml-auto">
-                <Button onClick={build} disabled={paused || chosen.size === 0 || building} title={paused ? cooldown.reason : undefined}>
+                <Button
+                  scope="catalog"
+                  onClick={build}
+                  disabled={paused || chosen.size === 0 || building}
+                  title={paused ? cooldown.reason : undefined}
+                >
                   {building ? <Spinner /> : "Create playlist"}
                 </Button>
               </div>
@@ -369,6 +426,7 @@ export function DiscographyPage() {
               {result.duplicatesSkipped} duplicate{result.duplicatesSkipped === 1 ? "" : "s"} skipped
               {result.otherArtistSkipped > 0 && ` · ${result.otherArtistSkipped} by other artists skipped`}
               {result.unplayableSkipped > 0 && ` · ${result.unplayableSkipped} unplayable`}
+              {result.releasesFromCache > 0 && ` · ${result.releasesFromCache} read from cache`}
               {result.playlist.trackCount < result.playlist.requested &&
                 ` · ${result.playlist.requested - result.playlist.trackCount} not accepted by Spotify`}
             </div>
